@@ -284,6 +284,8 @@ class MatchARNet(utils.backbone.VGG16_bn):
         for image, p, n_p, graph in zip(images, points, n_points, graphs):
             # extract feature
             # with torch.no_grad():
+            print(image, image.shape)
+            br
             nodes = self.node_layers(image)
             edges = self.edge_layers(nodes)
             
