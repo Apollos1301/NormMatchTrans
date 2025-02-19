@@ -32,7 +32,7 @@ class InfoNCE_Loss(torch.nn.Module):
         super(InfoNCE_Loss, self).__init__()
         self.temperature = torch.nn.Parameter(torch.tensor(temperature, requires_grad=True))	
         #self.temperature2 = torch.nn.Parameter(torch.tensor(temperature, requires_grad=True))
-    def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, prototype_score, similarity_tensor_2, pos_indices_2): #, prototype_score
+    def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, prototype_score, similarity_tensor_2, pos_indices_2, index_mat, n_graph_points): #, prototype_score
         #score_max_list = []
         #for t in prototype_score:
          #   ident_matrix = torch.eye(t.shape[1]).to(t.device)
@@ -46,18 +46,18 @@ class InfoNCE_Loss(torch.nn.Module):
         source_sim_normed1 = torch.norm(source_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
         source_sim_normed2 = torch.norm(source_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(1)
         source_sim_denominator = torch.bmm(source_sim_normed1, source_sim_normed2)
-        source_cosine_sim = source_sim_numer / source_sim_denominator
+        source_cosine_sim_ = source_sim_numer / source_sim_denominator
         
         
         target_sim_numer = torch.bmm(target_Points, target_Points.transpose(1, 2))
         target_sim_normed1 = torch.norm(target_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
         target_sim_normed2 = torch.norm(target_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(1)
         target_sim_denominator = torch.bmm(target_sim_normed1, target_sim_normed2)
-        target_cosine_sim = target_sim_numer / target_sim_denominator
+        target_cosine_sim_ = target_sim_numer / target_sim_denominator
         
-        ident_mat = torch.eye(source_cosine_sim.shape[1]).to(device)
-        source_cosine_sim = source_cosine_sim - 2 * ident_mat
-        target_cosine_sim = target_cosine_sim - 2 * ident_mat
+        ident_mat = torch.eye(source_cosine_sim_.shape[1]).to(device)
+        source_cosine_sim = source_cosine_sim_ - 2 * ident_mat
+        target_cosine_sim = target_cosine_sim_ - 2 * ident_mat
 
         #source_cosine_sim = source_cosine_sim / 0.5
         #target_cosine_sim = target_cosine_sim / 0.5
@@ -70,22 +70,37 @@ class InfoNCE_Loss(torch.nn.Module):
         target_prot_score_mean = torch.mean(target_prot_score_max, dim=-1)
         target_prot_score_mean = torch.mean(target_prot_score_mean)
         
+        #Within-graph consistency
+        # sq_forb_norm = torch.tensor([0]).to(device)
+        # for batch_index in range(source_cosine_sim_.shape[0]):
+        #     sq_forb_norm_ = torch.tensor([0]).to(device)
+        #     for i in range(n_graph_points[batch_index]):
+        #         current_source_points = source_cosine_sim_[batch_index, i, :n_graph_points[batch_index]]
+        #         current_target_points = target_cosine_sim_[batch_index, index_mat[batch_index, i], :n_graph_points[batch_index]]
+        #         current_target_points = current_target_points[index_mat[batch_index, :n_graph_points[batch_index]]]
+        #         node_diff = current_source_points - current_target_points
+        #         sq_forb_norm_ = sq_forb_norm_ + node_diff.square().sum()
+        #     sq_forb_norm = sq_forb_norm + torch.sqrt(sq_forb_norm_)
+        # sq_forb_norm = sq_forb_norm / source_cosine_sim_.shape[0]         
+                    
+        
         sim_score = similarity_tensor #torch.atanh(similarity_tensor)
         logits = sim_score / self.temperature
         loss_1 = F.cross_entropy(logits, pos_indices)
-        # print(loss + source_prot_score_mean + target_prot_score_mean)
+        
         logits_2 = similarity_tensor_2 / self.temperature
         loss_2 = F.cross_entropy(logits_2, pos_indices_2)
        
         loss = loss_1 + loss_2 #(loss_1 + loss_2) / 2
-        return loss + source_prot_score_mean + target_prot_score_mean #+ torch.mean(score_max_tensor) #prot_loss
+        return loss + source_prot_score_mean + target_prot_score_mean #  sq_forb_norm 
 
 lr_schedules = {
     #TODO: CHANGE BACK TO 10
     "long_halving1": (32, (3, 8, 13, 20), 0.3),
     "long_halving2": (32, (10, 15, 30), 0.1),
-    "long_halving3": (32, (3, 5,), 0.1),
+    "long_halving3": (32, (3, 5), 0.1),
     "long_halving4": (32, (2, 3), 0.1),
+    "long_halving5": (32, (2, 5), 0.1),
     # "long_halving": (30, (3, 6, 12, 26), 0.25),
     # "long_halving": (50, (40,), 0.1),
     "short_halving": (2, (1,), 0.5),
@@ -262,10 +277,9 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 similarity_scores_2 = similarity_scores_2.masked_select(expanded_mask).view(-1, perm_mat_list_2.size(2))
                 y_values_2 = perm_mat_list_2.masked_select(expanded_mask).view(-1, perm_mat_list_2.size(2))
                 y_values_2 = torch.argmax(y_values_2, dim=1)
-
                 
-                loss = criterion(similarity_scores, y_values_, s_points, t_points, prototype_score, similarity_scores_2, y_values_2) #, prototype_score
-                
+                index_mat = torch.argmax(perm_mat_list[0], dim=-1)
+                loss = criterion(similarity_scores, y_values_, s_points, t_points, prototype_score, similarity_scores_2, y_values_2, index_mat, n_points_gt_list[0]) #, prototype_score
                 
                 loss.backward()
                 
@@ -388,7 +402,7 @@ if __name__ == "__main__":
     # dist.init_process_group(backend='gloo', init_method='env://')
     
     #linux
-    dist.init_process_group(backend='nccl', init_method='env://')
+    dist.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=60))
     
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     local_rank = int(os.environ['LOCAL_RANK']) 
@@ -420,7 +434,7 @@ if __name__ == "__main__":
     torch.manual_seed(cfg.RANDOM_SEED)
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
-        x: GMDataset(cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(256, 256)) for x in ("train", "test")
+        x: GMDataset(cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(224, 224)) for x in ("train", "test")
     }
     
     sampler = {
@@ -455,14 +469,13 @@ if __name__ == "__main__":
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion = InfoNCE_Loss(temperature=cfg.TRAIN.temperature)
-    backbone_params = list(model.module.node_layers.parameters()) + list(model.module.edge_layers.parameters())
-    
+    backbone_params = model.module.backbone_params
 
     backbone_ids = [id(item) for item in backbone_params]
 
     new_params = [param for param in model.parameters() if id(param) not in backbone_ids]
     opt_params = [
-        dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.01 ),
+        dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.01),
         dict(params=new_params, lr=cfg.TRAIN.LR ),
     ]
     optimizer = optim.Adam(opt_params, weight_decay=cfg.TRAIN.weight_decay)

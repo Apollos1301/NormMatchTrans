@@ -7,7 +7,7 @@
     "num_graphs_in_matching_instance": 2
   },
   "SPLINE_CNN": {
-    "input_features": 1024,
+    "input_features": 1536,
     "output_features": 648
   },
   "Matching_TF": {
@@ -30,7 +30,7 @@
   "TRAIN": {
     "EPOCH_ITERS": 2000,
     "LR": 0.0005,
-    "lr_schedule": "long_halving4",
+    "lr_schedule": "long_halving5",
     "clip_norm": 0,
     "weight_decay": 0,
     "num_graphs_in_matching_instance": 2,

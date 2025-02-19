@@ -166,11 +166,11 @@ class SelfAttention(nn.Module):
         v = v.view(batch_size, seq_len, self.num_heads, self.head_dim)
 
         # applying RoPE
-        # sin = freqs['sin'][:, :seq_len, :, :].to(self.device) 
-        # cos = freqs['cos'][:, :seq_len, :, :].to(self.device) # (1, seq_len, 1, head_dim // 2)
-        # q = self.apply_rotary_pos_emb(q, sin, cos) # no shape change
-        # k = self.apply_rotary_pos_emb(k, sin, cos)
-
+        sin = freqs['sin'][:, :seq_len, :, :].to(self.device) 
+        cos = freqs['cos'][:, :seq_len, :, :].to(self.device) # (1, seq_len, 1, head_dim // 2)
+        q = self.apply_rotary_pos_emb(q, sin, cos) # no shape change
+        k = self.apply_rotary_pos_emb(k, sin, cos)
+        
         # normalizing & scaling our queries  & keys (see page 4)
         s_qk = self.s_qk() # (num_heads, head_dim)
         q = cosine_norm(q) * s_qk # then scale each head
@@ -363,7 +363,7 @@ class MLP(nn.Module):
         self.Wdown = nn.Linear(hidden_dim, output_dim, bias=False, device=self.device)
 
         # this flag designates Wdown to have a different parameter initialization as defined in model.py
-        self.Wdown.GPT_scale_init = 0
+        self.Wdown.GPT_scale_init = 1
 
         # the learnable scaling factors
         self.s_u = Scale(hidden_dim, device=device)

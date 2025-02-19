@@ -1,5 +1,7 @@
 import torch.nn as nn
 from torchvision import models
+from utils.vit import *
+from utils.gmt import *
 
 
 class VGG16_base(nn.Module):
@@ -55,3 +57,48 @@ class VGG16_base(nn.Module):
 class VGG16_bn(VGG16_base):
     def __init__(self):
         super(VGG16_bn, self).__init__(True)
+
+
+class Vit_base(nn.Module):
+    def __init__(self):
+        super(Vit_base, self).__init__()
+        self.vit = ViT(img_size=224,
+                              patch_size=16,
+                              embed_dim=768,
+                              depth=12,
+                              num_heads=12)
+        self.backbone_params = list(self.vit.parameters())
+
+        # --------------------------load parameters for base ViT-----------------------------------
+        weights_dict = torch.load('./utils/checkpoints/vit_base.pth')
+        del weights_dict['model']['head.weight']
+        del weights_dict['model']['head.bias']
+        print(self.vit.load_state_dict(weights_dict['model'], strict=False))
+        # ------------------------------------------------------------------------------------------
+
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+    
+    
+class Gmt_base(nn.Module):
+    def __init__(self):
+        super(Gmt_base, self).__init__()
+        self.gmt= Gmt(img_size=224,
+                              patch_size=16,
+                              embed_dim=768,
+                              depth=12,
+                              num_heads=12)
+        self.backbone_params = list(self.gmt.parameters())
+
+        # --------------------------load parameters for base Gmt--------------------------
+        weights_dict = torch.load('./utils/checkpoints/vit_base.pth')
+        del weights_dict['model']['head.weight']
+        del weights_dict['model']['head.bias']
+        print(self.gmt.load_state_dict(weights_dict['model'], strict=False))
+        # ------------------------------------------------------------------------------------------
+
+    @property
+    def device(self):
+        return next(self.parameters()).device

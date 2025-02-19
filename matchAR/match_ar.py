@@ -18,9 +18,10 @@ from matchAR.nGPT_decoder import NGPT_DECODER
 from matchAR.nGPT_encoder import NGPT_ENCODER
 
 
-def normalize_over_channels(x):
-    channel_norms = torch.norm(x, dim=1, keepdim=True)
+def normalize_over_channels(x, eps=1e-9):
+    channel_norms = torch.norm(x, dim=1, keepdim=True) + eps
     return x / channel_norms
+
 
 
 def concat_features(embeddings, num_vertices):
@@ -138,19 +139,19 @@ class ModelConfig:
     num_heads: int = 4 # number of heads in the multi-head attention mechanism
     mlp_hidden_mult: float = 4
 
-class MatchARNet(utils.backbone.VGG16_bn):
+class MatchARNet(utils.backbone.Vit_base): #Gmt_base
     def __init__(self):
         super(MatchARNet, self).__init__()
         self.model_name = 'Transformer'
         self.psi = SConv(input_features=cfg.SPLINE_CNN.input_features, output_features=cfg.Matching_TF.d_model)
         # self.mlp = MLPQuery(cfg.Matching_TF.d_model, 1024, cfg.Matching_TF.d_model, batch_norm=cfg.Matching_TF.batch_norm)
         
-        self.vgg_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features, cfg.Matching_TF.d_model)
-        self.glob_to_node_dim = nn.Linear(512, cfg.Matching_TF.d_model)
+        self.vit_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features, cfg.Matching_TF.d_model)
+        self.glob_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features//2, cfg.Matching_TF.d_model)
 
-        self.s_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
-        self.t_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
-        self.cls_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
+        # self.s_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
+        # self.t_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
+        # self.cls_enc = nn.Parameter(torch.randn(cfg.Matching_TF.d_model))
         # self.scaled_mlp = MLP_scaled(cfg.Matching_TF.d_model*2, cfg.Matching_TF.d_model//2, cfg.Matching_TF.d_model)      
         
         self.pos_encoding = Pointwise2DPositionalEncoding(cfg.Matching_TF.d_model, 256, 256).cuda()
@@ -210,25 +211,28 @@ class MatchARNet(utils.backbone.VGG16_bn):
         Enforces constraints after each optimization step:
         2. Cosine normalization on Linear layer weights where one dimension matches model dim
         """
-        # for layer in self.n_gpt_encoder.layers:
-        #     layer.alpha_A.s.data.abs_()
-        #     layer.alpha_M.s.data.abs_()
+        # self.vit.enforce_constraints()
+        self.n_gpt_decoder.enforce_constraints()
+        self.n_gpt_decoder_2.enforce_constraints()
+        # # for layer in self.n_gpt_encoder.layers:
+        # #     layer.alpha_A.s.data.abs_()
+        # #     layer.alpha_M.s.data.abs_()
             
-        for layer in self.n_gpt_decoder.layers:
-            layer.alpha_A.s.data.abs_()
-            layer.alpha_C.s.data.abs_()
-            layer.alpha_G.s.data.abs_()
-            layer.alpha_M.s.data.abs_()
+        # for layer in self.n_gpt_decoder.layers:
+        #     layer.alpha_A.s.data.abs_()
+        #     layer.alpha_C.s.data.abs_()
+        #     layer.alpha_G.s.data.abs_()
+        #     layer.alpha_M.s.data.abs_()
         
-        for layer in self.n_gpt_decoder_2.layers:
-            layer.alpha_A.s.data.abs_()
-            layer.alpha_C.s.data.abs_()
-            layer.alpha_G.s.data.abs_()
-            layer.alpha_M.s.data.abs_()
-        # Cosine normalize relevant Linear layers
-        for module in self.modules():
-            if isinstance(module, (nn.Linear, nn.Embedding)):
-                self.normalize_linear(module)
+        # for layer in self.n_gpt_decoder_2.layers:
+        #     layer.alpha_A.s.data.abs_()
+        #     layer.alpha_C.s.data.abs_()
+        #     layer.alpha_G.s.data.abs_()
+        #     layer.alpha_M.s.data.abs_()
+        # # Cosine normalize relevant Linear layers
+        # for module in self.modules():
+        #     if isinstance(module, (nn.Linear, nn.Embedding)):
+        #         self.normalize_linear(module)
     
     # def update_queries(self, Q, in_training, eval_pred_points, n_points, all_targets):
     #     if in_training is True:
@@ -284,39 +288,58 @@ class MatchARNet(utils.backbone.VGG16_bn):
         for image, p, n_p, graph in zip(images, points, n_points, graphs):
             # extract feature
             # with torch.no_grad():
-            print(image, image.shape)
-            br
-            nodes = self.node_layers(image)
-            edges = self.edge_layers(nodes)
+            # nodes = self.node_layers(image)
+            # edges = self.edge_layers(nodes)
             
-            nodes = normalize_over_channels(nodes)
-            edges = normalize_over_channels(edges)
-
-            # arrange features
-            U = concat_features(feature_align(nodes, p, n_p, (256, 256)), n_p)
-            F = concat_features(feature_align(edges, p, n_p, (256, 256)), n_p)
-
-            node_features = torch.cat((U, F), dim=-1)
+            # nodes = normalize_over_channels(nodes)
+            # edges = normalize_over_channels(edges)
+            # # arrange features
+            # U = concat_features(feature_align(nodes, p, n_p, (256, 256)), n_p)
+            # F = concat_features(feature_align(edges, p, n_p, (256, 256)), n_p)
+            
+            #VIT
+            vit_nodes, vit_edges, glob_token = self.vit(image)
+            
+            vit_nodes = normalize_over_channels(vit_nodes)
+            vit_edges = normalize_over_channels(vit_edges)
+            
+            vit_U = concat_features(feature_align(vit_nodes, p, n_p, (256, 256)), n_p)
+            vit_F = concat_features(feature_align(vit_edges, p, n_p, (256, 256)), n_p)
+            
+            node_features = torch.cat((vit_U, vit_F), dim=-1)
+            
+            
+            #GMT
+            # gmt_nodes, gmt_edges, glob_token = self.gmt(image, p, n_p)
+            
+            # gmt_nodes = normalize_over_channels(gmt_nodes)
+            # gmt_edges = normalize_over_channels(gmt_edges)
+            
+            # gmt_U = concat_features(gmt_nodes, n_p)
+            # gmt_F = concat_features(gmt_edges, n_p)
+            
+            # node_features = torch.cat((gmt_U, gmt_F), dim=-1)
+            
+            
+            
             graph.x = node_features
             # for visualisation purposes only
             graph_list.append(graph.to_data_list())
 
             # node + edge features from vgg
-            vgg_features = self.vgg_to_node_dim(node_features)
-            
+            vit_features = self.vit_to_node_dim(node_features)
             # splineCNN spatial features 
             h = self.psi(graph)
-
-            h_res = h + vgg_features
+            h_res = h + vit_features
                             
             (h_res, mask) = to_dense_batch(h_res, graph.batch, fill_value=0)
 
             if cfg.Matching_TF.pos_encoding:
                 h_res = h_res + self.pos_encoding(p)
                 
-            global_feature = self.final_layers(edges)[0].reshape((nodes.shape[0], -1))
-            global_feature = self.glob_to_node_dim(global_feature)
-            global_feature = global_feature + self.cls_enc
+            #global_feature = self.final_layers(edges)[0].reshape((nodes.shape[0], -1))
+            global_feature = self.glob_to_node_dim(glob_token)
+            # global_feature = global_feature + self.cls_enc
             global_feature = global_feature.unsqueeze(1).expand(-1,1, -1)
             
             # global_feature = self.linear_cls(global_feature)
