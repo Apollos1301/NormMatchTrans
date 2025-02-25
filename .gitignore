@@ -1,6 +1,7 @@
 /results
 /errors
 /data/*/
+/utils/checkpoints/*
 /*/__pycache__
 __pycache__
 /wandb*

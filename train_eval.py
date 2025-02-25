@@ -434,7 +434,7 @@ if __name__ == "__main__":
     torch.manual_seed(cfg.RANDOM_SEED)
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
-        x: GMDataset(cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(224, 224)) for x in ("train", "test")
+        x: GMDataset(cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
     }
     
     sampler = {

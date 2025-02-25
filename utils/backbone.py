@@ -2,6 +2,7 @@ import torch.nn as nn
 from torchvision import models
 from utils.vit import *
 from utils.gmt import *
+from utils.swinV2 import *
 
 
 class VGG16_base(nn.Module):
@@ -97,6 +98,23 @@ class Gmt_base(nn.Module):
         del weights_dict['model']['head.weight']
         del weights_dict['model']['head.bias']
         print(self.gmt.load_state_dict(weights_dict['model'], strict=False))
+        # ------------------------------------------------------------------------------------------
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+    
+class SwinV2(nn.Module):
+    def __init__(self):
+        super(SwinV2, self).__init__()
+        self.swin = SwinTransformer()
+        self.backbone_params = list(self.swin.parameters())
+
+        # --------------------------load parameters for base SwinV2--------------------------
+        weights_dict = torch.load('./utils/checkpoints/swinv2_base_patch4_window12to24_192to384_22kto1k_ft.pth')
+        del weights_dict['model']['head.weight']
+        del weights_dict['model']['head.bias']
+        print(self.swin.load_state_dict(weights_dict['model'], strict=False))
         # ------------------------------------------------------------------------------------------
 
     @property

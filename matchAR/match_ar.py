@@ -139,7 +139,7 @@ class ModelConfig:
     num_heads: int = 4 # number of heads in the multi-head attention mechanism
     mlp_hidden_mult: float = 4
 
-class MatchARNet(utils.backbone.Vit_base): #Gmt_base
+class MatchARNet(utils.backbone.SwinV2): #Gmt_base #Vit_base
     def __init__(self):
         super(MatchARNet, self).__init__()
         self.model_name = 'Transformer'
@@ -249,17 +249,19 @@ class MatchARNet(utils.backbone.Vit_base): #Gmt_base
         global_feat = 0
         for image, p, n_p, graph in zip(images, points, n_points, graphs):
             # extract feature
-            
+            x_ = self.swin(image)
+            print(x_.shape)
+            br
             #VIT
-            vit_nodes, vit_edges, glob_token = self.vit(image)
+            # vit_nodes, vit_edges, glob_token = self.vit(image)
             
-            vit_nodes = normalize_over_channels(vit_nodes)
-            vit_edges = normalize_over_channels(vit_edges)
+            # vit_nodes = normalize_over_channels(vit_nodes)
+            # vit_edges = normalize_over_channels(vit_edges)
             
-            vit_U = concat_features(feature_align(vit_nodes, p, n_p, (256, 256)), n_p)
-            vit_F = concat_features(feature_align(vit_edges, p, n_p, (256, 256)), n_p)
+            # vit_U = concat_features(feature_align(vit_nodes, p, n_p, (256, 256)), n_p)
+            # vit_F = concat_features(feature_align(vit_edges, p, n_p, (256, 256)), n_p)
             
-            node_features = torch.cat((vit_U, vit_F), dim=-1)
+            # node_features = torch.cat((vit_U, vit_F), dim=-1)
             
             
             #GMT
