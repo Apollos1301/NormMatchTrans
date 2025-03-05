@@ -7,7 +7,7 @@
     "num_graphs_in_matching_instance": 2
   },
   "SPLINE_CNN": {
-    "input_features": 1536,
+    "input_features": 2048,
     "output_features": 648
   },
   "Matching_TF": {
