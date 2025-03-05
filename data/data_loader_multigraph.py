@@ -8,6 +8,10 @@ from data.pascal_voc import PascalVOC
 from data.willow_obj import WillowObject
 from data.SPair71k import SPair71k
 from utils.build_graphs import build_graphs
+import albumentations as A
+import os
+from PIL import Image
+
 
 from utils.config import cfg
 from torch_geometric.data import Data, Batch
@@ -39,9 +43,21 @@ class GMDataset(Dataset):
         self.cls = None
         #TODO: Hard-coded to 2 graphs  
         self.num_graphs_in_matching_instance = 2
-        
-        
+        self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(3, 6),
+                                        hole_height_range=(10, 20),
+                                        hole_width_range=(10, 20),
+                                        p=0.5)],
+                                     keypoint_params=A.KeypointParams(format="xy", remove_invisible=True, label_fields=['class_labels']))
+        self.aug_pipeline = A.Compose([A.HueSaturationValue(p=0.5),
+                                       A.RandomGamma(p=0.5),
+                                       A.RGBShift(p=0.5),
+                                       A.CLAHE(p=0.5),
+                                       A.Blur(p=0.5),
+                                       A.RandomBrightnessContrast(p=0.5)],
+                                      keypoint_params=A.KeypointParams(format="xy", remove_invisible=False))
         self.added_data = []
+        self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
+        self.filenames = os.listdir(self.folder_path)
 
     def set_cls(self, cls):
         if cls == "none":
@@ -61,13 +77,21 @@ class GMDataset(Dataset):
         return self.length + self.added_length
 
     def __getitem__(self, idx):
+        random_mixUP_img_idx = random.randint(0, len(self.filenames)-1)
+        random_mixUP_img_path = os.path.join(self.folder_path, self.filenames[random_mixUP_img_idx])
+        with Image.open(str(random_mixUP_img_path)) as img:
+            random_mixUP_img = img.resize(self.obj_size, resample=Image.BICUBIC)
+        random_mixUP_img = np.array(random_mixUP_img)
+            
         sampling_strategy = cfg.train_sampling if self.ds.sets == "train" else cfg.eval_sampling
         if self.num_graphs_in_matching_instance is None:
             raise ValueError("Num_graphs has to be set to an integer value.")
 
         idx = idx if self.true_epochs else None
         anno_list, perm_mat_list = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
-                
+        # print(anno_list)
+        # print(perm_mat_list)
+        
         """
         Implement Random Swap here
         """
@@ -84,15 +108,64 @@ class GMDataset(Dataset):
         points_gt = [np.array([(kp["x"], kp["y"]) for kp in anno_dict["keypoints"]]) for anno_dict in anno_list]
         n_points_gt = [len(p_gt) for p_gt in points_gt]
         # print(points_gt)
-        # print("----------------------------------------------------------------")
-        # print(n_points_gt)
+        kp_labels1 = np.arange(n_points_gt[0])
+        kp_labels2 = np.arange(n_points_gt[1])
+        
+        imgs = [anno["image"] for anno in anno_list]
+        transformed_class_labels1 = []
+        transformed_class_labels2 = []
+        for j_ in range(len(points_gt)):
+            if j_ == 0:
+                augmented = self.aug_pipeline(image=np.array(imgs[j_]), keypoints=points_gt[j_])
+                # augmented = self.aug_erasing(image=augmented["image"], keypoints=points_gt[j_], class_labels=kp_labels1)
+                # transformed_class_labels1 = augmented['class_labels']
+            else:
+                augmented = self.aug_pipeline(image=np.array(imgs[j_]), keypoints=points_gt[j_])
+                # transformed_class_labels2 = augmented['class_labels']
+            imgs[j_] = augmented["image"]
+            points_gt[j_] = np.clip(augmented["keypoints"], 0, self.obj_size[0])
+        
+        
+        # removed_kp_rows = np.setdiff1d(kp_labels1, transformed_class_labels1)
+        # # removed_kp_columns = np.setdiff1d(kp_labels2, transformed_class_labels2)
+        
+        # sub_matrix1 = perm_mat_list[0][removed_kp_rows, :]
+        # # sub_matrix2 = perm_mat_list[0][:, removed_kp_columns]
+        # _, column_indices = np.where(sub_matrix1 == 1)
+        # # row_indices, _ = np.where(sub_matrix2 == 1)
+        
+        # perm_mat_list[0][removed_kp_rows, :] = 0
+        # # perm_mat_list[0][:, removed_kp_columns] = 0
+        
+        # has_one = np.any(perm_mat_list[0] == 1, axis=1)
+        # perm_mat_list[0] = np.vstack([perm_mat_list[0][has_one], perm_mat_list[0][~has_one]])
+        
+        
+        # all_removed_source = removed_kp_rows#np.union1d(removed_kp_rows, row_indices)
+        # all_removed_target = column_indices#np.union1d(removed_kp_columns, column_indices)
+        # # print(points_gt[0])
+        # # print(all_removed_source)
+        # #points_gt[0] = np.delete(points_gt[0], all_removed_source, axis=0)
+        # points_gt[1] = np.delete(points_gt[1], all_removed_target, axis=0)
+        
+        # n_points_gt = [len(p_gt) for p_gt in points_gt]
+        
+        #MixUp
+        alpha = 1.0
+        lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+        imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
+        imgs[0] = imgs[0].astype(np.float32)
+        
+        lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+        imgs[1] = lam*imgs[1] + (1.0 - lam)*random_mixUP_img
+        imgs[1] = imgs[1].astype(np.float32)
         
         graph_list = []
         for p_gt, n_p_gt in zip(points_gt, n_points_gt):
             edge_indices, edge_features = build_graphs(p_gt, n_p_gt)
-
+            #print(self.obj_size)
             # Add dummy node features so the __slices__ of them is saved when creating a batch
-            pos = torch.tensor(p_gt).to(torch.float32) / 256.0
+            pos = torch.tensor(p_gt).to(torch.float32) / self.obj_size[0]
             assert (pos > -1e-5).all(), p_gt
             graph = Data(
                 edge_attr=torch.tensor(edge_features).to(torch.float32),
@@ -112,7 +185,7 @@ class GMDataset(Dataset):
             "edges": graph_list
         }
 
-        imgs = [anno["image"] for anno in anno_list]
+        
         if imgs[0] is not None:
             trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize(cfg.NORM_MEANS, cfg.NORM_STD)])
             imgs = [trans(img) for img in imgs]

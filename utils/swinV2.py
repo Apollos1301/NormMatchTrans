@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
-from timm.layers import DropPath, to_2tuple, trunc_normal_
+from .timmLayers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
 
 
@@ -544,7 +544,7 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
-
+        self.num_heads = num_heads
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
@@ -618,11 +618,11 @@ class SwinTransformer(nn.Module):
         #EDIT
         node_layer = 2
         edge_layer = 1
-        nodes_patchSize = self.img_size // num_heads[len(self.layers) - node_layer]
-        edges_patchSize = self.img_size // num_heads[len(self.layers) - edge_layer]
+        nodes_patchSize = 12#self.img_size // self.num_heads[len(self.layers) - node_layer]
+        edges_patchSize = 12#self.img_size // self.num_heads[len(self.layers) - edge_layer]
         
-        nodes = torch.empty((x.shape[0], nodes_patchSize**2, embed_dim * 2 ** (len(self.layers) - node_layer)))
-        edges = torch.empty((x.shape[0], edges_patchSize**2, embed_dim * 2 ** (len(self.layers) - edge_layer)))
+        nodes = torch.empty((x.shape[0], nodes_patchSize**2, 1024)) #self.embed_dim * 2 ** (len(self.layers) - node_layer)
+        edges = torch.empty((x.shape[0], edges_patchSize**2, 1024)) #self.embed_dim * 2 ** (len(self.layers) - edge_layer)
         layer_count = 0
         for layer in self.layers:
             x = layer(x)
@@ -644,8 +644,8 @@ class SwinTransformer(nn.Module):
         
         
         x = self.avgpool(x.transpose(1, 2))  # B C 1
-        #x = torch.flatten(x, 1)
-        return x
+        x = torch.flatten(x, 1)
+        return nodes, edges, x
 
     def forward(self, x):
         x = self.forward_features(x)

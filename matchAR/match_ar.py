@@ -249,19 +249,27 @@ class MatchARNet(utils.backbone.SwinV2): #Gmt_base #Vit_base
         global_feat = 0
         for image, p, n_p, graph in zip(images, points, n_points, graphs):
             # extract feature
-            x_ = self.swin(image)
-            print(x_.shape)
-            br
+            #SwinV2
+            swin_nodes, swin_edges, glob_token= self.swin(image)
+            
+            swin_nodes = normalize_over_channels(swin_nodes)
+            swin_edges = normalize_over_channels(swin_edges)
+            
+            swin_U = concat_features(feature_align(swin_nodes, p, n_p, (384, 384)), n_p)
+            swin_F = concat_features(feature_align(swin_edges, p, n_p, (384, 384)), n_p)
+            
+            node_features = torch.cat((swin_U, swin_F), dim=-1)
+            
             #VIT
-            # vit_nodes, vit_edges, glob_token = self.vit(image)
+            #vit_nodes, vit_edges, glob_token = self.vit(image)
             
-            # vit_nodes = normalize_over_channels(vit_nodes)
-            # vit_edges = normalize_over_channels(vit_edges)
+            #vit_nodes = normalize_over_channels(vit_nodes)
+            #vit_edges = normalize_over_channels(vit_edges)
             
-            # vit_U = concat_features(feature_align(vit_nodes, p, n_p, (256, 256)), n_p)
-            # vit_F = concat_features(feature_align(vit_edges, p, n_p, (256, 256)), n_p)
+            #vit_U = concat_features(feature_align(vit_nodes, p, n_p, (224, 224)), n_p)
+            #vit_F = concat_features(feature_align(vit_edges, p, n_p, (224, 224)), n_p)
             
-            # node_features = torch.cat((vit_U, vit_F), dim=-1)
+            #node_features = torch.cat((vit_U, vit_F), dim=-1)
             
             
             #GMT
@@ -294,7 +302,7 @@ class MatchARNet(utils.backbone.SwinV2): #Gmt_base #Vit_base
                 
             #global_feature = self.final_layers(edges)[0].reshape((nodes.shape[0], -1))
             global_feature = self.glob_to_node_dim(glob_token)
-            # global_feature = global_feature + self.cls_enc
+            #global_feature = global_feature + self.cls_enc
             global_feature = global_feature.unsqueeze(1).expand(-1,1, -1)
             
             # global_feature = self.linear_cls(global_feature)
