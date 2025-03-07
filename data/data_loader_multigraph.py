@@ -96,7 +96,7 @@ class GMDataset(Dataset):
             raise ValueError("Num_graphs has to be set to an integer value.")
 
         idx = idx if self.true_epochs else None
-        anno_list, perm_mat_list, annotation = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
+        anno_list, perm_mat_list = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
         # print(anno_list)
         # print(perm_mat_list)
         
