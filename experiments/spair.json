@@ -2,7 +2,7 @@
   "default_json": "experiments/voc_basic.json",
   "BATCH_SIZE": 3,
   "DATASET_NAME": "SPair71k",
-  "model_dir": "./results/spair/ar/",
+  "model_dir": "./results/spair/",
   "TRAIN": {
     "EPOCH_ITERS": 2000,
     "lr_schedule": "long_halving4",

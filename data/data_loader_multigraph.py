@@ -21,9 +21,10 @@ datasets = {"PascalVOC": PascalVOC,
             "SPair71k": SPair71k}
 
 class GMDataset(Dataset):
-    def __init__(self, name, length, **args):
+    def __init__(self, train_or_test, name, length, **args):
         self.added_length = 0
         self.name = name
+        self.train = True if train_or_test == "train" else False
         self.ds = datasets[name](**args)
         self.true_epochs = length is None
         print("TRUE EPOCHS: ", self.true_epochs)
@@ -43,17 +44,17 @@ class GMDataset(Dataset):
         self.cls = None
         #TODO: Hard-coded to 2 graphs  
         self.num_graphs_in_matching_instance = 2
-        self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(3, 6),
-                                        hole_height_range=(10, 20),
-                                        hole_width_range=(10, 20),
-                                        p=0.5)],
+        self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(1, 2),
+                                        hole_height_range=(20, 40),
+                                        hole_width_range=(20, 40),
+                                        p=0.3)],
                                      keypoint_params=A.KeypointParams(format="xy", remove_invisible=True, label_fields=['class_labels']))
-        self.aug_pipeline = A.Compose([A.HueSaturationValue(p=0.5),
-                                       A.RandomGamma(p=0.5),
-                                       A.RGBShift(p=0.5),
-                                       A.CLAHE(p=0.5),
-                                       A.Blur(p=0.5),
-                                       A.RandomBrightnessContrast(p=0.5)],
+        self.aug_pipeline = A.Compose([#A.HueSaturationValue(p=0.5),
+                                       #A.RandomGamma(p=0.5),
+                                       #A.RGBShift(p=0.5),
+                                       #A.CLAHE(p=0.5),
+                                       #A.Blur(p=0.5),
+                                       A.RandomBrightnessContrast(p=0.1)],
                                       keypoint_params=A.KeypointParams(format="xy", remove_invisible=False))
         self.added_data = []
         self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
@@ -82,13 +83,20 @@ class GMDataset(Dataset):
         with Image.open(str(random_mixUP_img_path)) as img:
             random_mixUP_img = img.resize(self.obj_size, resample=Image.BICUBIC)
         random_mixUP_img = np.array(random_mixUP_img)
+        
+        
+        random_cutMix_img_idx = random.randint(0, len(self.filenames)-1)
+        random_cutMix_img_path = os.path.join(self.folder_path, self.filenames[random_cutMix_img_idx])
+        with Image.open(str(random_cutMix_img_path)) as img:
+            random_cutMix_img = img.resize(self.obj_size, resample=Image.BICUBIC)
+        random_cutMix_img = np.array(random_cutMix_img)
             
         sampling_strategy = cfg.train_sampling if self.ds.sets == "train" else cfg.eval_sampling
         if self.num_graphs_in_matching_instance is None:
             raise ValueError("Num_graphs has to be set to an integer value.")
 
         idx = idx if self.true_epochs else None
-        anno_list, perm_mat_list = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
+        anno_list, perm_mat_list, annotation = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
         # print(anno_list)
         # print(perm_mat_list)
         
@@ -108,57 +116,67 @@ class GMDataset(Dataset):
         points_gt = [np.array([(kp["x"], kp["y"]) for kp in anno_dict["keypoints"]]) for anno_dict in anno_list]
         n_points_gt = [len(p_gt) for p_gt in points_gt]
         # print(points_gt)
-        kp_labels1 = np.arange(n_points_gt[0])
-        kp_labels2 = np.arange(n_points_gt[1])
-        
+        # annotation_dict = [np.array(anno_dict["keypoints"]) for anno_dict in anno_list]
+        turn_off = False
         imgs = [anno["image"] for anno in anno_list]
-        transformed_class_labels1 = []
-        transformed_class_labels2 = []
-        for j_ in range(len(points_gt)):
-            if j_ == 0:
-                augmented = self.aug_pipeline(image=np.array(imgs[j_]), keypoints=points_gt[j_])
-                # augmented = self.aug_erasing(image=augmented["image"], keypoints=points_gt[j_], class_labels=kp_labels1)
-                # transformed_class_labels1 = augmented['class_labels']
-            else:
-                augmented = self.aug_pipeline(image=np.array(imgs[j_]), keypoints=points_gt[j_])
-                # transformed_class_labels2 = augmented['class_labels']
-            imgs[j_] = augmented["image"]
-            points_gt[j_] = np.clip(augmented["keypoints"], 0, self.obj_size[0])
-        
-        
-        # removed_kp_rows = np.setdiff1d(kp_labels1, transformed_class_labels1)
-        # # removed_kp_columns = np.setdiff1d(kp_labels2, transformed_class_labels2)
-        
-        # sub_matrix1 = perm_mat_list[0][removed_kp_rows, :]
-        # # sub_matrix2 = perm_mat_list[0][:, removed_kp_columns]
-        # _, column_indices = np.where(sub_matrix1 == 1)
-        # # row_indices, _ = np.where(sub_matrix2 == 1)
-        
-        # perm_mat_list[0][removed_kp_rows, :] = 0
-        # # perm_mat_list[0][:, removed_kp_columns] = 0
-        
-        # has_one = np.any(perm_mat_list[0] == 1, axis=1)
-        # perm_mat_list[0] = np.vstack([perm_mat_list[0][has_one], perm_mat_list[0][~has_one]])
-        
-        
-        # all_removed_source = removed_kp_rows#np.union1d(removed_kp_rows, row_indices)
-        # all_removed_target = column_indices#np.union1d(removed_kp_columns, column_indices)
-        # # print(points_gt[0])
-        # # print(all_removed_source)
-        # #points_gt[0] = np.delete(points_gt[0], all_removed_source, axis=0)
-        # points_gt[1] = np.delete(points_gt[1], all_removed_target, axis=0)
-        
-        # n_points_gt = [len(p_gt) for p_gt in points_gt]
-        
-        #MixUp
-        alpha = 1.0
-        lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
-        imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
-        imgs[0] = imgs[0].astype(np.float32)
-        
-        lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
-        imgs[1] = lam*imgs[1] + (1.0 - lam)*random_mixUP_img
-        imgs[1] = imgs[1].astype(np.float32)
+        if self.train:
+            transformed_class_labels1 = []
+            transformed_class_labels2 = []
+            kp_labels1 = np.arange(n_points_gt[0])
+            kp_labels2 = np.arange(n_points_gt[1])
+            
+            augmented = self.aug_erasing(image=np.array(imgs[0]), keypoints=points_gt[0], class_labels=kp_labels1)
+            transformed_class_labels1 = augmented['class_labels']
+            
+            
+            removed_kp_rows = np.setdiff1d(kp_labels1, transformed_class_labels1)
+            if len(removed_kp_rows) < len(points_gt[0]):
+                imgs[0] = augmented["image"]
+                # # removed_kp_columns = np.setdiff1d(kp_labels2, transformed_class_labels2)
+                sub_matrix1 = perm_mat_list[0][removed_kp_rows, :]
+                # # sub_matrix2 = perm_mat_list[0][:, removed_kp_columns]
+                _, column_indices = np.where(sub_matrix1 == 1)
+                # # row_indices, _ = np.where(sub_matrix2 == 1)
+                
+                # perm_mat_list[0][removed_kp_rows, :] = 0
+                # # # perm_mat_list[0][:, removed_kp_columns] = 0
+                # has_one = np.any(perm_mat_list[0] == 1, axis=1)
+                # perm_mat_list[0] = perm_mat_list[0][has_one]#np.vstack([perm_mat_list[0][has_one], perm_mat_list[0][~has_one]])
+                perm_mat_list[0] = np.delete(perm_mat_list[0], removed_kp_rows, axis=0)  # Delete rows
+                perm_mat_list[0] = np.delete(perm_mat_list[0], column_indices, axis=1)   # Delete columns
+                
+                
+                points_gt[0] = np.delete(points_gt[0], removed_kp_rows, axis=0)
+                points_gt[1] = np.delete(points_gt[1], column_indices, axis=0)
+            
+            
+            img_cutMix, cutMix_rm_kp = cutmix_with_keypoints_indices(imgs[0], random_cutMix_img, points_gt[0])
+            
+            if len(cutMix_rm_kp) < len(points_gt[0]):
+                imgs[0] = img_cutMix
+                sub_matrix1 = perm_mat_list[0][cutMix_rm_kp, :]
+                _, column_indices = np.where(sub_matrix1 == 1)
+                perm_mat_list[0] = np.delete(perm_mat_list[0], cutMix_rm_kp, axis=0)  # Delete rows
+                perm_mat_list[0] = np.delete(perm_mat_list[0], column_indices, axis=1)   # Delete columns
+                
+                points_gt[0] = np.delete(points_gt[0], cutMix_rm_kp, axis=0)
+                points_gt[1] = np.delete(points_gt[1], column_indices, axis=0)
+            
+            
+            
+            n_points_gt = [len(p_gt) for p_gt in points_gt]
+            
+            #MixUp
+            alpha = 0.8
+            mixup_prob = 0.3
+            if np.random.rand() < mixup_prob:
+                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
+                imgs[0] = imgs[0].astype(np.float32)
+            if np.random.rand() < mixup_prob:
+                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                imgs[1] = lam*imgs[1] + (1.0 - lam)*random_mixUP_img
+                imgs[1] = imgs[1].astype(np.float32)
         
         graph_list = []
         for p_gt, n_p_gt in zip(points_gt, n_points_gt):
@@ -195,67 +213,73 @@ class GMDataset(Dataset):
             ret_dict["features"] = [torch.Tensor(x) for x in feat_list]
 
         return ret_dict
-        # if idx is not None:
-        #     if idx < self.length:
-        #         anno_list, perm_mat_list = self.ds.get_k_samples(idx, k=self.num_graphs_in_matching_instance, cls=self.cls, mode=sampling_strategy)
-                
-        #         """
-        #         Implement Random Swap here
-        #         """
-        #         for perm_mat in perm_mat_list:
-        #             if (
-        #                 not perm_mat.size
-        #                 or (perm_mat.size < 2 * 2 and sampling_strategy == "intersection")
-        #                 and not self.true_epochs
-        #             ):
-        #                 # 'and not self.true_epochs' because we assume all data is valid when sampling a true epoch
-        #                 next_idx = None if idx is None else idx + 1
-        #                 return self.__getitem__(next_idx)
-
-        #         points_gt = [np.array([(kp["x"], kp["y"]) for kp in anno_dict["keypoints"]]) for anno_dict in anno_list]
-        #         n_points_gt = [len(p_gt) for p_gt in points_gt]
-        #         # print(points_gt)
-        #         # print("----------------------------------------------------------------")
-        #         # print(n_points_gt)
-                
-        #         graph_list = []
-        #         for p_gt, n_p_gt in zip(points_gt, n_points_gt):
-        #             edge_indices, edge_features = build_graphs(p_gt, n_p_gt)
-
-        #             # Add dummy node features so the __slices__ of them is saved when creating a batch
-        #             pos = torch.tensor(p_gt).to(torch.float32) / 256.0
-        #             assert (pos > -1e-5).all(), p_gt
-        #             graph = Data(
-        #                 edge_attr=torch.tensor(edge_features).to(torch.float32),
-        #                 edge_index=torch.tensor(edge_indices, dtype=torch.long),
-        #                 x=pos,
-        #                 pos=pos,
-        #             )
-        #             graph.num_nodes = n_p_gt
-        #             graph_list.append(graph)
-
-        #         ret_dict = {
-        #             "Ps": [torch.Tensor(x) for x in points_gt],
-        #             "ns": [torch.tensor(x) for x in n_points_gt],
-        #             "gt_perm_mat": perm_mat_list,
-        #             "edges": graph_list,
-        #         }
-
-        #         imgs = [anno["image"] for anno in anno_list]
-        #         if imgs[0] is not None:
-        #             trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize(cfg.NORM_MEANS, cfg.NORM_STD)])
-        #             imgs = [trans(img) for img in imgs]
-        #             ret_dict["images"] = imgs
-        #         elif "feat" in anno_list[0]["keypoints"][0]:
-        #             feat_list = [np.stack([kp["feat"] for kp in anno_dict["keypoints"]], axis=-1) for anno_dict in anno_list]
-        #             ret_dict["features"] = [torch.Tensor(x) for x in feat_list]
-
-        #         return ret_dict
-        #     else:
-        #         pass
     
     def inject_error_data(self, ret_dict, error_indices):
         pass
+
+import numpy as np
+
+def cutmix_with_keypoints_indices(image, sampled_image, keypoints, cutmix_prob=0.3, beta=1.0, max_cut_ratio=0.3):
+    """
+    Applies CutMix augmentation on an input image and returns the indices of keypoints removed.
+    The size of the cut region is limited by max_cut_ratio.
+    
+    Parameters:
+        image (np.ndarray): The input image (H x W x C).
+        sampled_image (np.ndarray): The second image sampled from the dataset (H x W x C).
+        keypoints (np.ndarray): 2D numpy array of keypoint coordinates in [x, y] format (shape: N x 2).
+        cutmix_prob (float): The probability of applying CutMix.
+        beta (float): Hyperparameter for the Beta distribution to sample lambda.
+        max_cut_ratio (float): Maximum fraction of image width/height for the cut region.
+        
+    Returns:
+        new_image (np.ndarray): The augmented image.
+        removed_indices (np.ndarray): Indices of keypoints that lie inside the replaced region.
+    """
+    # If CutMix is not applied, return the original image and an empty array for indices.
+    if np.random.rand() > cutmix_prob:
+        return image.copy(), np.empty((0,), dtype=int)
+    
+    if image is None:
+        return image.copy(), np.empty((0,), dtype=int)
+    # Sample lambda from a Beta distribution.
+    lam = np.random.beta(beta, beta)
+    
+    # Get dimensions of the image
+    H, W, _ = image.shape
+
+    # Compute ideal cut ratio based on lambda but then limit it with max_cut_ratio.
+    cut_ratio = np.sqrt(1. - lam)
+    cut_ratio = np.minimum(cut_ratio, max_cut_ratio)
+    
+    # Determine the size of the patch to be cut out.
+    cut_w = int(W * cut_ratio)
+    cut_h = int(H * cut_ratio)
+    
+    # Randomly choose the center of the patch.
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+    
+    # Compute the coordinates of the patch and ensure they are within image bounds.
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+    
+    # Create a copy of the original image.
+    new_image = image.copy()
+    
+    # Replace the selected region in the original image with the corresponding region from the sampled image.
+    new_image[bby1:bby2, bbx1:bbx2, :] = sampled_image[bby1:bby2, bbx1:bbx2, :]
+    
+    # Identify the indices of keypoints that lie inside the replaced patch.
+    inside_patch = (
+        (keypoints[:, 0] >= bbx1) & (keypoints[:, 0] < bbx2) &
+        (keypoints[:, 1] >= bby1) & (keypoints[:, 1] < bby2)
+    )
+    removed_indices = np.where(inside_patch)[0]
+    
+    return new_image, removed_indices
 
 
 def collate_fn(data: list):

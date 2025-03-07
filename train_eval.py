@@ -2,7 +2,7 @@ import math
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-import wandb
+# import wandb
 
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -15,16 +15,13 @@ from scipy.optimize import linear_sum_assignment
 import time
 from pathlib import Path
 import os
-import pandas as pd
-import matplotlib
 from datetime import timedelta
 
-from sklearn.metrics import f1_score
 from data.data_loader_multigraph import GMDataset, get_dataloader
 import eval
-from matchAR import Net, SimpleNet, EncoderNet, ResMatcherNet, MatchARNet
+from model import NMT
 from utils.config import cfg
-from utils.utils import update_params_from_cmdline, compute_grad_norm
+from utils.utils import update_params_from_cmdline
 from utils.evaluation_metric import calculate_correct_and_valid, calculate_f1_score, get_pos_neg, get_pos_neg_from_lists
 
 class InfoNCE_Loss(torch.nn.Module):
@@ -137,12 +134,12 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
     since = time.time()
     dataloader["train"].dataset.set_num_graphs(cfg.TRAIN.num_graphs_in_matching_instance)
     dataset_size = len(dataloader["train"].dataset)
-    
+    all_error_dict = {}
 
     device = next(model.parameters()).device
     if local_rank == output_rank:
         print("Start training...")
-        print("{} model on device: {}".format(cfg.MODEL_ARCH , device))
+        print("NMT model on device: {}".format(device))
 
     checkpoint_path = Path(cfg.model_dir) / "params"
     if not checkpoint_path.exists():
@@ -162,7 +159,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         # assert resume
         if local_rank == output_rank:
             print(f"Evaluating without training...")
-            evaluation_epoch = 13
+            evaluation_epoch = 5
             accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank, eval_epoch=evaluation_epoch)
             all_error_dict[evaluation_epoch] = error_dict
             acc_dict = {
@@ -190,7 +187,6 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         optimizer, milestones=lr_milestones, gamma=lr_decay
     )
     torch.autograd.set_detect_anomaly(True)
-    all_error_dict = {}
     result_dict = {}
     
     iter_num = 0
@@ -375,10 +371,10 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
             if local_rank == output_rank:
                 accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
                 all_error_dict[epoch+1] = error_dict
-                wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1, "mean test_acc": torch.mean(accs), "mean test_f1": torch.mean(f1_scores)})
+                # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1, "mean test_acc": torch.mean(accs), "mean test_f1": torch.mean(f1_scores)})
         else:
             if local_rank == output_rank:
-                wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
+                # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
                 print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}, epoch f1_score: {epoch_f1}')
         
         if cfg.save_checkpoint and local_rank == output_rank:
@@ -415,26 +411,26 @@ if __name__ == "__main__":
     with open(os.path.join(cfg.model_dir, "settings.json"), "w") as f:
         json.dump(cfg, f)
     
-    if local_rank == output_rank:
-        wandb.init(
-        # set the wandb project where this run will be logged
-        project="matchAR",
+    # if local_rank == output_rank:
+    #     wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="NMT",
         
-        # track hyperparameters and run metadata
-        config={
-        "learning_rate": cfg.TRAIN.LR,
-        "architecture": cfg.MODEL_ARCH,
-        "dataset": cfg.DATASET_NAME,
-        "epochs": lr_schedules[cfg.TRAIN.lr_schedule][0],
-        "batch_size": cfg.BATCH_SIZE,
-        "cfg_full": cfg
-        }
-        )
+    #     # track hyperparameters and run metadata
+    #     config={
+    #     "learning_rate": cfg.TRAIN.LR,
+    #     "architecture": "NMT",
+    #     "dataset": cfg.DATASET_NAME,
+    #     "epochs": lr_schedules[cfg.TRAIN.lr_schedule][0],
+    #     "batch_size": cfg.BATCH_SIZE,
+    #     "cfg_full": cfg
+    #     }
+    #     )
 
     torch.manual_seed(cfg.RANDOM_SEED)
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
-        x: GMDataset(cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
+        x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
     }
     
     sampler = {
@@ -447,16 +443,7 @@ if __name__ == "__main__":
     # torch.cuda.set_device(0)
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if cfg.MODEL_ARCH == 'tf':
-        model = Net()
-    elif cfg.MODEL_ARCH == 'mlp':
-        model = SimpleNet()
-    elif cfg.MODEL_ARCH == 'enc':
-        model = EncoderNet()
-    elif cfg.MODEL_ARCH == 'res':
-        model = ResMatcherNet()
-    elif cfg.MODEL_ARCH == 'ar':
-        model = MatchARNet()
+    model = NMT()
         
     
     

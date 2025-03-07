@@ -7,15 +7,15 @@ from torch_geometric.utils import to_dense_batch
 from scipy.optimize import linear_sum_assignment
 
 import utils.backbone
-from matchAR.sconv_archs import SConv
-from matchAR.positionalEmbedding import Pointwise2DPositionalEncoding
+from model.sconv_archs import SConv
+from model.positionalEmbedding import Pointwise2DPositionalEncoding
 from utils.config import cfg
 from utils.feature_align import feature_align
 from utils.utils import lexico_iter
 from utils.evaluation_metric import make_perm_mat_pred
 from utils.visualization import easy_visualize
-from matchAR.nGPT_decoder import NGPT_DECODER
-from matchAR.nGPT_encoder import NGPT_ENCODER
+from model.nGPT_decoder import NGPT_DECODER
+from model.nGPT_encoder import NGPT_ENCODER
 
 
 def normalize_over_channels(x, eps=1e-9):
@@ -139,9 +139,9 @@ class ModelConfig:
     num_heads: int = 4 # number of heads in the multi-head attention mechanism
     mlp_hidden_mult: float = 4
 
-class MatchARNet(utils.backbone.SwinV2): #Gmt_base #Vit_base
+class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
     def __init__(self):
-        super(MatchARNet, self).__init__()
+        super(NMT, self).__init__()
         self.model_name = 'Transformer'
         self.psi = SConv(input_features=cfg.SPLINE_CNN.input_features, output_features=cfg.Matching_TF.d_model)
         # self.mlp = MLPQuery(cfg.Matching_TF.d_model, 1024, cfg.Matching_TF.d_model, batch_norm=cfg.Matching_TF.batch_norm)
