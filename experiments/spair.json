@@ -5,7 +5,7 @@
   "model_dir": "./results/spair/",
   "TRAIN": {
     "EPOCH_ITERS": 2000,
-    "lr_schedule": "long_halving4",
+    "lr_schedule": "long_halving5",
     "LR": 0.0005,
     "difficulty_params": {}
   },
