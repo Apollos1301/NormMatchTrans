@@ -4,16 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.utils import to_dense_batch
-from scipy.optimize import linear_sum_assignment
 
 import utils.backbone
 from model.sconv_archs import SConv
 from model.positionalEmbedding import Pointwise2DPositionalEncoding
 from utils.config import cfg
 from utils.feature_align import feature_align
-from utils.utils import lexico_iter
-from utils.evaluation_metric import make_perm_mat_pred
-from utils.visualization import easy_visualize
 from model.nGPT_decoder import NGPT_DECODER
 from model.nGPT_encoder import NGPT_ENCODER
 
