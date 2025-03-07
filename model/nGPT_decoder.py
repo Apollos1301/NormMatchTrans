@@ -138,8 +138,6 @@ class SelfAttention(nn.Module):
 
     def forward(self,
         x: torch.Tensor,
-        # freqs: dict = None,
-        mask: torch.Tensor = None,
         freqs = None,
         is_eval = False
     ) -> torch.Tensor:
@@ -183,16 +181,8 @@ class SelfAttention(nn.Module):
         
         # Compute attention logits (compare queries & keys)
         logits = (q @ k.transpose(-2, -1)) * self.scale # (batch_size, num_heads, seq_len, seq_len)
-        logits = logits.to(mask.device)
-        # here we mask out all the future-values
-        if is_eval == True:
-            mask = mask.unsqueeze(1)
-            
-        logits = logits.masked_fill(mask, -1e9)
+        logits = logits.to(x.device)
         
-        
-        
-
         # Compute attention scores (grab the relevant values that correspond to the attention logits)
         scores =  F.softmax(logits, dim=-1) @ v # (batch_size, n_heads, seq_len, head_dim)
         # Combine heads
@@ -430,7 +420,7 @@ class Layer(nn.Module):
         # eigen learning rate vector
         self.alpha_M = Scale(cfg.dim, init = 0.05, scale = 1. / math.sqrt(cfg.dim), device=self.device) #init= 0.05
         
-    def forward(self, h: torch.Tensor, m: torch.Tensor, mask: torch.Tensor, padding_mask, freqs, is_eval) -> torch.Tensor: #freqs: dict, 
+    def forward(self, h: torch.Tensor, m: torch.Tensor, padding_mask, freqs, is_eval) -> torch.Tensor: #freqs: dict, 
         """
         Forward pass of the Layer module.
 
@@ -447,7 +437,7 @@ class Layer(nn.Module):
         # print(m.shape, m)
         # print(mask.shape, mask)
         # print("--------------------------------")
-        h_A = cosine_norm(self.attn(h, mask, freqs, is_eval)) #freqs, 
+        h_A = cosine_norm(self.attn(h, freqs, is_eval)) #freqs, 
         h = cosine_norm(h + self.alpha_A() * (h_A - h))
         # print(h_A.shape, h_A)
         # print(h.shape, h)
@@ -578,8 +568,7 @@ class NGPT_DECODER(nn.Module):
 
     def forward(
         self, 
-        source_nodes: torch.Tensor, 
-        mask: torch.Tensor,
+        source_nodes: torch.Tensor,
         padding_mask,
         encoder_output: torch.Tensor = None,
         is_eval = False,
@@ -606,7 +595,7 @@ class NGPT_DECODER(nn.Module):
         x = source_nodes
         # run through the model's layers
         for layer in self.layers:
-            x = layer(x, encoder_output, mask, padding_mask, freqs, is_eval)
+            x = layer(x, encoder_output, padding_mask, freqs, is_eval)
         
         # the final output of the model
         logits = x#self.output(x) # (batch_size, seq_len, vocab_len)

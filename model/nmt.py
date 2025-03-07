@@ -343,12 +343,9 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
           
         
             
+        hs_dec_output = self.n_gpt_decoder(h_s, padding_mask, h_t)
         
-        source_points_mask = torch.zeros(seq_len, seq_len, dtype=torch.bool).to(h_t.device)
-        hs_dec_output = self.n_gpt_decoder(h_s, source_points_mask, padding_mask, h_t)
-        
-        ht_decoder_mask = torch.zeros(seq_len, seq_len, dtype=torch.bool).to(h_t.device)
-        ht_dec_output = self.n_gpt_decoder_2(h_t, ht_decoder_mask, padding_mask, h_s)
+        ht_dec_output = self.n_gpt_decoder_2(h_t, padding_mask, h_s)
             
         # paired_global_feat = torch.cat([hs_dec_output[ :, 0, :], ht_dec_output[ :, 0, :]], dim=-2).to(hs_dec_output.device)
         # paired_global_feat = self.scaled_mlp(paired_global_feat)
