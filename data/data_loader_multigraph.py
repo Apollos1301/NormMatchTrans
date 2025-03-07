@@ -122,6 +122,9 @@ class GMDataset(Dataset):
         if self.train:
             transformed_class_labels1 = []
             transformed_class_labels2 = []
+            h, w = imgs[0].size[:2]
+            points_gt[0] = np.clip(points_gt[0], [0, 0], [w-1, h-1])
+            points_gt[1] = np.clip(points_gt[1], [0, 0], [w-1, h-1])
             kp_labels1 = np.arange(n_points_gt[0])
             kp_labels2 = np.arange(n_points_gt[1])
             
