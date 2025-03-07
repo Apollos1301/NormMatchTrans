@@ -1,6 +1,6 @@
 {
   "default_json": "experiments/voc_basic.json",
-  "BATCH_SIZE": 3,
+  "BATCH_SIZE": 4,
   "DATASET_NAME": "SPair71k",
   "model_dir": "./results/spair/",
   "TRAIN": {
