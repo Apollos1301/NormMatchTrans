@@ -34,11 +34,7 @@
     "clip_norm": 0,
     "weight_decay": 0,
     "num_graphs_in_matching_instance": 2,
-    "random_swap": false,
-    "AR": true,
-    "temperature": 0.1,
-    "rince_q": 0.5,
-    "rince_lambda": 0.025
+    "temperature": 0.1
   },
   "STATISTIC_STEP": 1,
   "TRACK_GRAD_NORM": false,

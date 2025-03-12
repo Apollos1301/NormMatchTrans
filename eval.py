@@ -1,10 +1,6 @@
 import time
 from pathlib import Path
-import numpy as np
 import torch
-import torch.nn.functional as F
-import torch.distributed as dist  # Add this import
-from scipy.optimize import linear_sum_assignment
 
 from utils.config import cfg
 from utils.evaluation_metric import calculate_correct_and_valid, calculate_f1_score, get_pos_neg
@@ -40,55 +36,6 @@ def sinkhorn_logspace(
     Q = torch.exp(log_Q)
     return Q
 
-def sinkhorn_cosine(
-    cosine_sim: torch.Tensor,
-    max_iter: int = 15,
-    eps: float = 1e-9
-) -> torch.Tensor:
-    """
-    Converts a batch of cosine similarity matrices into doubly-stochastic matrices 
-    using the Sinkhorn algorithm.
-
-    Args:
-        cosine_sim: Tensor of shape (batch_size, n, m).
-        max_iter:   Number of Sinkhorn iterations.
-        eps:        Small numerical stabilizer to avoid division by zero.
-
-    Returns:
-        Doubly-stochastic matrices of shape (batch_size, n, m).
-    """
-
-    # 1) Exponentiate to ensure entries are positive
-    #    (you can also add a temperature scale if needed).
-    # cosine_sim[cosine_sim <= 0] = eps
-    # input_tensor = cosine_sim
-    Q = torch.exp(input_tensor)
-
-    for _ in range(max_iter):
-        # 2) Row normalization
-        row_sums = Q.sum(dim=2, keepdim=True) + eps
-        Q = Q / row_sums
-
-        # 3) Column normalization
-        col_sums = Q.sum(dim=1, keepdim=True) + eps
-        Q = Q / col_sums
-        
-    return Q
-
-def cosine_norm(x, dim=-1):
-        """
-        Places vectors onto the unit-hypersphere
-
-        Args:
-            x (torch.Tensor): Input tensor.
-
-        Returns:
-            torch.Tensor: Normalized tensor.
-        """
-        # calculate the magnitude of the vectors
-        norm = torch.norm(x, p=2, dim=dim, keepdim=True).clamp(min=1e-6)
-        # divide by the magnitude to place on the unit hypersphere
-        return x / norm
 def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verbose=True):
     print("Start evaluation...")
     since = time.time()
@@ -126,11 +73,7 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         ds.set_cls(cls)
         acc_match_num = torch.zeros(1, device=device)
         acc_total_num = torch.zeros(1, device=device)
-        # tp = torch.zeros(1, device=device)
-        # fp = torch.zeros(1, device=device)
-        # fn = torch.zeros(1, device=device)
 
-        # for analysis of each step accuracy
         
         result_dict = {}
         tp = 0
@@ -173,7 +116,7 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
                 
                 
                     
-                similarity_scores, _, _, _, _ = model(data_list, points_gt, edges, n_points_gt, n_points_sample, perm_mat_list, eval_pred_points, in_training= False)
+                similarity_scores, _, _ = model(data_list, points_gt, edges, n_points_gt, n_points_sample, perm_mat_list, eval_pred_points, in_training= False)
                 
                 batch_size = similarity_scores.shape[0]
                 
@@ -213,18 +156,6 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
                 fp += _fp
                 fn += _fn
             
-            bs = perm_mat_list[0].size(0)
-            
-            # evaluation metrics
-            # _, _acc_match_num, _acc_total_num = matching_accuracy_from_lists(s_pred_mat_list, perm_mat_gt_list)
-            # _tp, _fp, _fn = get_pos_neg_from_lists(s_pred_mat_list, perm_mat_gt_list)
-
-            # acc_match_num += _acc_match_num
-            # acc_total_num += _acc_total_num
-            # tp += _tp
-            # fp += _fp
-            # fn += _fn
-
             if iter_num % 40 == 0 and verbose: #cfg.STATISTIC_STEP
                 running_speed = 40 * batch_num / (time.time() - running_since) #cfg.STATISTIC_STEP
                 print("Class {:<8} Iteration {:<4} {:>4.2f}sample/s".format(cls, iter_num, running_speed))
@@ -263,28 +194,5 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         print("{} = {:.4f}, {:.4f}".format(cls, single_acc, f1_sc))
     print("average = {:.4f}, {:.4f}".format(torch.mean(accs), torch.mean(f1_scores)))
 
-    # error distribution
-    # err_dist={}
-    # num_bins = 5
-    # for cls, v in error_dist_dict.items():
-    #     matched_instances_size = max([tensor.size(0) for tensor in v ])
-    #     n_matched_instances = torch.zeros(matched_instances_size)
-
-    #     n_possible_matches  = [torch.ones(tensor.size(0)) for tensor in v]
-    #     total_instances_to_match = torch.zeros(matched_instances_size)
-    #     for tensor in v:
-    #         n_matched_instances[:tensor.size(0)] += tensor
-    #     for tensor in n_possible_matches:
-    #         total_instances_to_match[:tensor.size(0)] += tensor
-        
-    #     indices = torch.arange(matched_instances_size)
-    #     bin_edges = torch.linspace(0, matched_instances_size, num_bins)
-    #     binned_indices = torch.bucketize(indices, bin_edges)
-        
-    #     binned_matches = torch.bincount(binned_indices, weights=n_matched_instances)
-    #     binned_counts = torch.bincount(binned_indices, weights=total_instances_to_match)
-        
-    #     cls_error_distribution = binned_matches / binned_counts
-    #     err_dist[cls] = cls_error_distribution
 
     return accs, f1_scores, error_dist_dict

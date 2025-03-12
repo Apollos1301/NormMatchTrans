@@ -8,10 +8,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
-from torch.utils.data import DataLoader, Subset, DistributedSampler
-from sklearn.model_selection import train_test_split
-import numpy as np
-from scipy.optimize import linear_sum_assignment
+from torch.utils.data import DistributedSampler
 import time
 from pathlib import Path
 import os
@@ -22,23 +19,13 @@ import eval
 from model import NMT
 from utils.config import cfg
 from utils.utils import update_params_from_cmdline
-from utils.evaluation_metric import calculate_correct_and_valid, calculate_f1_score, get_pos_neg, get_pos_neg_from_lists
+from utils.evaluation_metric import calculate_correct_and_valid, calculate_f1_score
 
 class InfoNCE_Loss(torch.nn.Module):
     def __init__(self, temperature):
         super(InfoNCE_Loss, self).__init__()
         self.temperature = torch.nn.Parameter(torch.tensor(temperature, requires_grad=True))	
-        #self.temperature2 = torch.nn.Parameter(torch.tensor(temperature, requires_grad=True))
-    def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, prototype_score, similarity_tensor_2, pos_indices_2, index_mat, n_graph_points): #, prototype_score
-        #score_max_list = []
-        #for t in prototype_score:
-         #   ident_matrix = torch.eye(t.shape[1]).to(t.device)
-         #  prototype_score = t - 2 * ident_matrix
-         #   prototype_score_max, _ = torch.max(prototype_score, dim=-1)
-         #   score_max_list.append(prototype_score_max)
-
-        #score_max_tensor = torch.cat(score_max_list, dim=1)
-        
+    def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, similarity_tensor_2, pos_indices_2):
         source_sim_numer = torch.bmm(source_Points, source_Points.transpose(1, 2))
         source_sim_normed1 = torch.norm(source_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
         source_sim_normed2 = torch.norm(source_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(1)
@@ -56,9 +43,6 @@ class InfoNCE_Loss(torch.nn.Module):
         source_cosine_sim = source_cosine_sim_ - 2 * ident_mat
         target_cosine_sim = target_cosine_sim_ - 2 * ident_mat
 
-        #source_cosine_sim = source_cosine_sim / 0.5
-        #target_cosine_sim = target_cosine_sim / 0.5
-
         source_prot_score_max, _ = torch.max(source_cosine_sim, dim=-1)
         source_prot_score_mean = torch.mean(source_prot_score_max, dim=-1)
         source_prot_score_mean = torch.mean(source_prot_score_mean)
@@ -66,20 +50,6 @@ class InfoNCE_Loss(torch.nn.Module):
         target_prot_score_max, _ = torch.max(target_cosine_sim, dim=-1)
         target_prot_score_mean = torch.mean(target_prot_score_max, dim=-1)
         target_prot_score_mean = torch.mean(target_prot_score_mean)
-        
-        #Within-graph consistency
-        # sq_forb_norm = torch.tensor([0]).to(device)
-        # for batch_index in range(source_cosine_sim_.shape[0]):
-        #     sq_forb_norm_ = torch.tensor([0]).to(device)
-        #     for i in range(n_graph_points[batch_index]):
-        #         current_source_points = source_cosine_sim_[batch_index, i, :n_graph_points[batch_index]]
-        #         current_target_points = target_cosine_sim_[batch_index, index_mat[batch_index, i], :n_graph_points[batch_index]]
-        #         current_target_points = current_target_points[index_mat[batch_index, :n_graph_points[batch_index]]]
-        #         node_diff = current_source_points - current_target_points
-        #         sq_forb_norm_ = sq_forb_norm_ + node_diff.square().sum()
-        #     sq_forb_norm = sq_forb_norm + torch.sqrt(sq_forb_norm_)
-        # sq_forb_norm = sq_forb_norm / source_cosine_sim_.shape[0]         
-                    
         
         sim_score = similarity_tensor #torch.atanh(similarity_tensor)
         logits = sim_score / self.temperature
@@ -98,8 +68,6 @@ lr_schedules = {
     "long_halving3": (32, (3, 5), 0.1),
     "long_halving4": (32, (2, 3), 0.1),
     "long_halving5": (32, (2, 5), 0.1),
-    # "long_halving": (30, (3, 6, 12, 26), 0.25),
-    # "long_halving": (50, (40,), 0.1),
     "short_halving": (2, (1,), 0.5),
     "long_nodrop": (10, (10,), 1.0),
     "minirun": (1, (10,), 1.0),
@@ -227,21 +195,6 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
             perm_mat_list = [perm_mat.cuda() for perm_mat in inputs["gt_perm_mat"]]
             
             
-            # # randomly swap source and target images
-            if cfg.TRAIN.random_swap:
-                for i in range(data_list[0].shape[0]):
-                    # with 0.5 probability
-                    swap_flag = torch.bernoulli(torch.Tensor([0.5]))
-                    swap_flag = int(swap_flag.item())
-
-                    if swap_flag:
-                        # swap edge list
-                        # swap everything else
-                        perm_mat_list = swap_permutation_matrix(perm_mat_list, i)
-                        data_list = swap_src_tgt_order(data_list, i)
-                        points_gt_list = swap_src_tgt_order(points_gt_list, i)
-                        n_points_gt_list = swap_src_tgt_order(n_points_gt_list, i)
-                        edges_list = swap_src_tgt_order(edges_list, i)
             n_points_gt_sample = n_points_gt_list[0] #n_points_gt_list[0].to('cpu').apply_(lambda x: torch.randint(low=1, high=x, size=(1,)).item()).to(device)
             iter_num = iter_num + 1
 
@@ -250,10 +203,9 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
 
             with torch.set_grad_enabled(True):
                 # forward
-                similarity_scores, sim_scores_all, prototype_score, s_points, t_points = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
+                similarity_scores, s_points, t_points = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
                 
                 batch_size = similarity_scores.shape[0]
-                num_points1 = similarity_scores.shape[1]
                 
                 
                 for idx, e in enumerate(n_points_gt_sample):
@@ -264,7 +216,6 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 
                 similarity_scores_2 = similarity_scores.clone().transpose(-2, -1)
                 perm_mat_list_2 = perm_mat_list[0].clone().transpose(-2, -1)
-                expanded_mask_2 = has_one.unsqueeze(-2).expand_as(perm_mat_list[0])
                 
                 similarity_scores = similarity_scores.masked_select(expanded_mask).view(-1, perm_mat_list[0].size(2))
                 y_values = perm_mat_list[0].masked_select(expanded_mask).view(-1, perm_mat_list[0].size(2))
@@ -274,8 +225,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 y_values_2 = perm_mat_list_2.masked_select(expanded_mask).view(-1, perm_mat_list_2.size(2))
                 y_values_2 = torch.argmax(y_values_2, dim=1)
                 
-                index_mat = torch.argmax(perm_mat_list[0], dim=-1)
-                loss = criterion(similarity_scores, y_values_, s_points, t_points, prototype_score, similarity_scores_2, y_values_2, index_mat, n_points_gt_list[0]) #, prototype_score
+                loss = criterion(similarity_scores, y_values_, s_points, t_points, similarity_scores_2, y_values_2) #, prototype_score
                 
                 loss.backward()
                 
@@ -302,7 +252,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 for i in range(B):
                     predictions_list.append([])
                 for np in range(N_t):
-                    similarity_scores, _, _, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
+                    similarity_scores, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
                     
                     batch_size = similarity_scores.shape[0]
                     num_points1 = similarity_scores.shape[1]
