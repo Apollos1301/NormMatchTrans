@@ -7,13 +7,20 @@ Normalized Matching Transformer (NMT) is an end-to-end deep learning pipeline th
 ## Requirements
 We use `CUDA 12.4` and `GCC 11.4.0`. All needed packages and libraries are in `environment.yml`.
 
+### Download datasets
+Run the `download_data.sh` script.
+
+### Backbone weights
+We use the SwinV2 model as our backbone. You need to download the SwinV2-L* weights, which were pretrained on `ImageNet-22K` and finetuned on `ImageNet-1K` [(SwinV2)](https://github.com/microsoft/Swin-Transformer).
+The weights location path should be `./utils/checkpoints/`.
+
 ## Installation
-1. Entry PATH of your conda environment folder in the last line of the `environment.yml` file.
+### conda env.
+1. Entry the path of your conda environment folder in the last line of the `environment.yml` file.
 2. Entry the command: 
 ```bash 
 conda env create -f environment.yml
 ```
-
 ## Usage
 
 ### Parameters
@@ -23,5 +30,5 @@ All Parameters are in the `experiments/` folder.
 ```bash
 python -m torch.distributed.run --nproc_per_node=1 train_eval.py ./experiments/voc_basic.json
 ```
-- `--nproc_per_node=1` sets how many GPU's you want to run the model.
-- `./experiments/voc_basic.json` is which Parameter's and Dataset to use. Other option would be `./experiments/spair.json`.
+- `--nproc_per_node=1` sets how many GPUs you want to run the model on.
+- `./experiments/voc_basic.json` is which Parameters and Dataset to use. Other option would be `./experiments/spair.json`.
