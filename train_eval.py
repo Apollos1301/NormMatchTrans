@@ -251,19 +251,18 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 predictions_list = []
                 for i in range(B):
                     predictions_list.append([])
+                
+                similarity_scores, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
+                
+                batch_size = similarity_scores.shape[0]
+                keypoint_preds = F.softmax(similarity_scores, dim=-1)
+                keypoint_preds = torch.argmax(keypoint_preds, dim=-1)
                 for np in range(N_t):
-                    similarity_scores, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
-                    
-                    batch_size = similarity_scores.shape[0]
-                    num_points1 = similarity_scores.shape[1]
-                    keypoint_preds = F.softmax(similarity_scores, dim=-1)
-                    keypoint_preds = torch.argmax(keypoint_preds, dim=-1)
                     for b in range(batch_size):
                         if eval_pred_points < n_points_gt_sample[b]:
                             predictions_list[b].append(keypoint_preds[b][eval_pred_points].item())
                         else:
                             predictions_list[b].append(-1)
-                    
                     eval_pred_points +=1
                 prediction_tensor = torch.tensor(predictions_list).to(perm_mat_list[0].device)
                 y_values_matching = torch.argmax(perm_mat_list[0], dim=-1)

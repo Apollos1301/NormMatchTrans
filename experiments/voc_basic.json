@@ -18,7 +18,6 @@
     "nGPT_mlp_hidden_mult": 6,
     "activation": "relu",
     "batch_norm": true,
-    "global_feat": true,
     "pos_encoding": false,
     "n_lap_EigVec": 8
   },
