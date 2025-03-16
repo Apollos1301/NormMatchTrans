@@ -19,6 +19,27 @@ def cosine_norm(x: torch.Tensor, dim=-1) -> torch.Tensor:
     # divide by the magnitude to place on the unit hypersphere
     return x / norm
 
+class LayerLoss(nn.Module):
+    def __init__(self, init_param=1.0):
+        super(LayerLoss, self).__init__()
+        self.lp = nn.Parameter(torch.tensor(init_param, dtype=torch.float32))
+        
+    def forward(self, keypoints: torch.Tensor):
+        keypoints_sim_numer = torch.bmm(keypoints, keypoints.transpose(1, 2))
+        keypoints_sim_normed1 = torch.norm(keypoints, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
+        keypoints_sim_normed2 = torch.norm(keypoints, p=2, dim=-1).clamp(min=1e-8).unsqueeze(1)
+        keypoints_sim_denominator = torch.bmm(keypoints_sim_normed1, keypoints_sim_normed2)
+        keypoints_cosine_sim_ = keypoints_sim_numer / keypoints_sim_denominator
+        
+        ident_mat = torch.eye(keypoints_cosine_sim_.shape[1]).to(keypoints.device)
+        keypoints_cosine_sim = keypoints_cosine_sim_ - 2 * ident_mat
+        
+        keypoints_prot_score_max, _ = torch.max(keypoints_cosine_sim, dim=-1)
+        keypoints_prot_score_mean = torch.mean(keypoints_prot_score_max, dim=-1)
+        keypoints_prot_score_mean = torch.mean(keypoints_prot_score_mean)
+        return keypoints_prot_score_mean * self.lp
+        
+
 class Scale(nn.Module):
     """
     A module that manages learnable scaling parameters to ensure different learning rates
@@ -420,6 +441,8 @@ class Layer(nn.Module):
         # eigen learning rate vector
         self.alpha_M = Scale(cfg.dim, init = 0.05, scale = 1. / math.sqrt(cfg.dim), device=self.device) #init= 0.05
         
+        self.layerLoss = LayerLoss()
+        
     def forward(self, h: torch.Tensor, m: torch.Tensor, padding_mask, freqs, is_eval) -> torch.Tensor: #freqs: dict, 
         """
         Forward pass of the Layer module.
@@ -456,7 +479,9 @@ class Layer(nn.Module):
         h_M = cosine_norm(self.mlp(h))
         h = cosine_norm(h + self.alpha_M() * (h_M - h))
         
-        return h
+        loss = self.layerLoss(h)
+        
+        return h, loss
 
 class NGPT_DECODER(nn.Module):
     def __init__(self, cfg):
@@ -593,15 +618,17 @@ class NGPT_DECODER(nn.Module):
         # initializing the first residual state
         # x = self.token_embedder(source_nodes) # (batch_size, seq_len, dim)
         x = source_nodes
+        loss = 0
         # run through the model's layers
         for layer in self.layers:
-            x = layer(x, encoder_output, padding_mask, freqs, is_eval)
+            x, loss_ = layer(x, encoder_output, padding_mask, freqs, is_eval)
+            loss += loss_
         
         # the final output of the model
         logits = x#self.output(x) # (batch_size, seq_len, vocab_len)
         
         
-        return logits
+        return logits, loss
         # to un-limit the temperature of the final probability distribution (see page 2)
         
         #EDIT

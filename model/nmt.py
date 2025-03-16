@@ -238,13 +238,11 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
           
         
             
-        hs_dec_output = self.n_gpt_decoder(h_s, padding_mask, h_t)
+        hs_dec_output, layer_losses1 = self.n_gpt_decoder(h_s, padding_mask, h_t)
         
-        ht_dec_output = self.n_gpt_decoder_2(h_t, padding_mask, h_s)
-            
-        # paired_global_feat = torch.cat([hs_dec_output[ :, 0, :], ht_dec_output[ :, 0, :]], dim=-2).to(hs_dec_output.device)
-        # paired_global_feat = self.scaled_mlp(paired_global_feat)
-        
+        ht_dec_output, layer_losses2 = self.n_gpt_decoder_2(h_t, padding_mask, h_s)
+         
+        print(layer_losses1, layer_losses2)
         #Encoder-Decoder
         # hs_dec_output = hs_dec_output[:, 1:, :]
         # target_points = cosine_norm(target_points)
