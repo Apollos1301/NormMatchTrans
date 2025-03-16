@@ -59,6 +59,7 @@ class GMDataset(Dataset):
         self.added_data = []
         self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
         self.filenames = os.listdir(self.folder_path)
+        random.seed(cfg.RANDOM_SEED)
 
     def set_cls(self, cls):
         if cls == "none":
