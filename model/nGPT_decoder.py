@@ -618,7 +618,7 @@ class NGPT_DECODER(nn.Module):
         # initializing the first residual state
         # x = self.token_embedder(source_nodes) # (batch_size, seq_len, dim)
         x = source_nodes
-        loss = 0
+        loss = torch.zeros(0, requires_grad=True, device=x.device)
         # run through the model's layers
         for layer in self.layers:
             x, loss_ = layer(x, encoder_output, padding_mask, freqs, is_eval)
