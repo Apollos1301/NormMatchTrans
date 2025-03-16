@@ -203,7 +203,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
 
             with torch.set_grad_enabled(True):
                 # forward
-                similarity_scores, s_points, t_points = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
+                similarity_scores, s_points, t_points, layer_loss = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
                 
                 batch_size = similarity_scores.shape[0]
                 
@@ -226,7 +226,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 y_values_2 = torch.argmax(y_values_2, dim=1)
                 
                 loss = criterion(similarity_scores, y_values_, s_points, t_points, similarity_scores_2, y_values_2) #, prototype_score
-                
+                loss = loss + layer_loss
                 loss.backward()
                 
                 if max_norm > 0:
@@ -252,7 +252,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 for i in range(B):
                     predictions_list.append([])
                 
-                similarity_scores, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
+                similarity_scores, _, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
                 
                 batch_size = similarity_scores.shape[0]
                 keypoint_preds = F.softmax(similarity_scores, dim=-1)

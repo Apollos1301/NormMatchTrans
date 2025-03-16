@@ -242,7 +242,7 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
         
         ht_dec_output, layer_losses2 = self.n_gpt_decoder_2(h_t, padding_mask, h_s)
          
-        print(layer_losses1, layer_losses2)
+        layer_loss = (layer_losses1 + layer_losses2) / 2
         #Encoder-Decoder
         # hs_dec_output = hs_dec_output[:, 1:, :]
         # target_points = cosine_norm(target_points)
@@ -254,7 +254,7 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
         
         sim_score = self.w_cosine(hs_dec_output, ht_dec_output) 
         
-        return sim_score, hs_dec_output, ht_dec_output 
+        return sim_score, hs_dec_output, ht_dec_output, layer_loss
         
 
 class PairwiseCosineSimilarity(nn.Module):
