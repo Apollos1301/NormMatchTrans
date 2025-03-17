@@ -319,8 +319,6 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         epoch_loss = epoch_loss / dataset_size
         
         if (epoch+1) % cfg.STATISTIC_STEP == 0:
-            if world_size > 1:
-                torch.distributed.barrier()
             if local_rank == output_rank:
                 accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
                 all_error_dict[epoch+1] = error_dict
@@ -388,25 +386,6 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(cfg.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     
-    # dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES} 
-    # # Remove world_size multiplication for test set
-
-    # image_dataset = {
-    #     x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
-    # }
-
-    # # Use DistributedSampler only for training, not testing
-    # sampler = {
-    #     "train": DistributedSampler(image_dataset["train"]),
-    #     "test": None  # No distributed sampling for test data
-    # }
-
-    # # Create dataloaders with shuffle=False for test
-    # dataloader = {
-    #     "train": get_dataloader(image_dataset["train"], sampler["train"], fix_seed=False),
-    #     "test": get_dataloader(image_dataset["test"], sampler=None, shuffle=False, fix_seed=True)  # Use regular sampler
-    # }
-    
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
         x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
@@ -419,16 +398,8 @@ if __name__ == "__main__":
     
     dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
 
-    
-    
-    
-    # torch.cuda.set_device(0)
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     model = NMT()
         
-    
-    
     
     torch.cuda.set_device(local_rank)
     device = torch.device(f'cuda:{local_rank}')
