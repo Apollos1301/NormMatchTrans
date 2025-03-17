@@ -444,8 +444,8 @@ if __name__ == "__main__":
 
     new_params = [param for param in model.parameters() if id(param) not in backbone_ids]
     opt_params = [
-        dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.03 * world_size),
-        dict(params=new_params, lr=cfg.TRAIN.LR * world_size),
+        dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.03),
+        dict(params=new_params, lr=cfg.TRAIN.LR),
     ]
     optimizer = optim.Adam(opt_params, weight_decay=cfg.TRAIN.weight_decay)
     
