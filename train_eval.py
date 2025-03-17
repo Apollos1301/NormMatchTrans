@@ -388,36 +388,36 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(cfg.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     
-    dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES} 
-    # Remove world_size multiplication for test set
+    # dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES} 
+    # # Remove world_size multiplication for test set
 
-    image_dataset = {
-        x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
-    }
-
-    # Use DistributedSampler only for training, not testing
-    sampler = {
-        "train": DistributedSampler(image_dataset["train"]),
-        "test": None  # No distributed sampling for test data
-    }
-
-    # Create dataloaders with shuffle=False for test
-    dataloader = {
-        "train": get_dataloader(image_dataset["train"], sampler["train"], fix_seed=False),
-        "test": get_dataloader(image_dataset["test"], sampler=None, shuffle=False, fix_seed=True)  # Use regular sampler
-    }
-    
-    # dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     # image_dataset = {
     #     x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
     # }
-    
+
+    # # Use DistributedSampler only for training, not testing
     # sampler = {
-    # "train": DistributedSampler(image_dataset["train"]),
-    # "test": DistributedSampler(image_dataset["test"])
+    #     "train": DistributedSampler(image_dataset["train"]),
+    #     "test": None  # No distributed sampling for test data
+    # }
+
+    # # Create dataloaders with shuffle=False for test
+    # dataloader = {
+    #     "train": get_dataloader(image_dataset["train"], sampler["train"], fix_seed=False),
+    #     "test": get_dataloader(image_dataset["test"], sampler=None, shuffle=False, fix_seed=True)  # Use regular sampler
     # }
     
-    # dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
+    dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
+    image_dataset = {
+        x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
+    }
+    
+    sampler = {
+    "train": DistributedSampler(image_dataset["train"]),
+    "test": DistributedSampler(image_dataset["test"])
+    }
+    
+    dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
 
     
     
