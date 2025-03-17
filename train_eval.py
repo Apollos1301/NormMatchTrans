@@ -1,4 +1,6 @@
 import math
+import numpy as np
+import random
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -378,6 +380,13 @@ if __name__ == "__main__":
     #     )
 
     torch.manual_seed(cfg.RANDOM_SEED)
+    
+    #Edit
+    np.random.seed(cfg.RANDOM_SEED)
+    random.seed(cfg.RANDOM_SEED)
+    torch.cuda.manual_seed_all(cfg.RANDOM_SEED)
+    torch.backends.cudnn.deterministic = True
+    
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
         x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
