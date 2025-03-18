@@ -20,10 +20,9 @@ def cosine_norm(x: torch.Tensor, dim=-1) -> torch.Tensor:
     return x / norm
 
 class LayerLoss(nn.Module):
-    def __init__(self, init_param=1.0):
+    def __init__(self, init_param=0.35):
         super(LayerLoss, self).__init__()
-        self.lp = nn.Parameter(torch.tensor(init_param, dtype=torch.float32))
-        
+        self.lp = torch.tensor(init_param, dtype=torch.float32)    
     def forward(self, keypoints: torch.Tensor):
         keypoints_sim_numer = torch.bmm(keypoints, keypoints.transpose(1, 2))
         keypoints_sim_normed1 = torch.norm(keypoints, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
