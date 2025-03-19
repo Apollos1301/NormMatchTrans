@@ -20,7 +20,7 @@ def cosine_norm(x: torch.Tensor, dim=-1) -> torch.Tensor:
     return x / norm
 
 class LayerLoss(nn.Module):
-    def __init__(self, init_param=0.35):
+    def __init__(self, init_param=0.3):
         super(LayerLoss, self).__init__()
         self.lp = torch.tensor(init_param, dtype=torch.float32)    
     def forward(self, keypoints: torch.Tensor):
