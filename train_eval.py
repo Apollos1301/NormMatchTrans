@@ -61,7 +61,7 @@ class InfoNCE_Loss(torch.nn.Module):
         loss_2 = F.cross_entropy(logits_2, pos_indices_2)
        
         loss = loss_1 + loss_2 #(loss_1 + loss_2) / 2
-        return loss + source_prot_score_mean + target_prot_score_mean #  sq_forb_norm 
+        return loss + 2*(source_prot_score_mean + target_prot_score_mean) #  sq_forb_norm 
 
 lr_schedules = {
     #TODO: CHANGE BACK TO 10
