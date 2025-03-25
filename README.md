@@ -1,4 +1,4 @@
-# NMT: Normalized Matching Transformer [(arxiv)]()
+# NMT: Normalized Matching Transformer [(arxiv)](https://arxiv.org/abs/2503.17715)
 Normalized Matching Transformer (NMT) is an end-to-end deep learning pipeline that fuses a swin-transformer backbone, a SplineCNN for geometry-aware keypoint refinement, and a normalized transformer decoder with Sinkhorn matching and advanced contrastive/hyperspherical losses to achieve state-of-the-art sparse keypoint correspondence.
 
 ![NMT architecture during inference](./misc/NMT_inference.png)
