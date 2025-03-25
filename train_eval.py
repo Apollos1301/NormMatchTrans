@@ -96,7 +96,7 @@ def swap_permutation_matrix(perm_mat_list, i):
 
 
 
-def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epochs, local_rank, output_rank, resume=False, start_epoch=0):
+def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epochs, local_rank, output_rank, world_size, resume=False, start_epoch=0):
     
     
     
@@ -205,9 +205,8 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
 
             with torch.set_grad_enabled(True):
                 # forward
-                similarity_scores, s_points, t_points = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
+                similarity_scores, s_points, t_points, layer_loss = model(data_list, points_gt_list, edges_list, n_points_gt_list, n_points_gt_sample, perm_mat_list)
                 eval_similarity_scores = similarity_scores.clone().detach()
-                
                 batch_size = similarity_scores.shape[0]
                 
                 
@@ -229,7 +228,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 y_values_2 = torch.argmax(y_values_2, dim=1)
                 
                 loss = criterion(similarity_scores, y_values_, s_points, t_points, similarity_scores_2, y_values_2) #, prototype_score
-                
+                loss = loss + layer_loss
                 loss.backward()
                 
                 if max_norm > 0:
@@ -255,7 +254,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 for i in range(B):
                     predictions_list.append([])
                 
-                # similarity_scores, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
+                # similarity_scores, _, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
                 
                 batch_size = eval_similarity_scores.shape[0]
                 keypoint_preds = F.softmax(eval_similarity_scores, dim=-1)
@@ -399,13 +398,8 @@ if __name__ == "__main__":
     
     dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
 
-    # torch.cuda.set_device(0)
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     model = NMT()
         
-    
-    
     
     torch.cuda.set_device(local_rank)
     device = torch.device(f'cuda:{local_rank}')
@@ -422,7 +416,7 @@ if __name__ == "__main__":
     new_params = [param for param in model.parameters() if id(param) not in backbone_ids]
     opt_params = [
         dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.03),
-        dict(params=new_params, lr=cfg.TRAIN.LR ),
+        dict(params=new_params, lr=cfg.TRAIN.LR),
     ]
     optimizer = optim.Adam(opt_params, weight_decay=cfg.TRAIN.weight_decay)
     
@@ -439,6 +433,7 @@ if __name__ == "__main__":
                                    num_epochs=num_epochs,
                                    local_rank=local_rank,
                                    output_rank = output_rank,
+                                   world_size = world_size,
                                    resume=cfg.warmstart_path is not None, 
                                    start_epoch=0,
                                    )

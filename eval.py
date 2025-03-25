@@ -116,7 +116,7 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
                 
                 
                     
-                similarity_scores, _, _ = model(data_list, points_gt, edges, n_points_gt, n_points_sample, perm_mat_list, eval_pred_points, in_training= False)
+                similarity_scores, _, _, _ = model(data_list, points_gt, edges, n_points_gt, n_points_sample, perm_mat_list, eval_pred_points, in_training= False)
                 
                 batch_size = similarity_scores.shape[0]
                 
