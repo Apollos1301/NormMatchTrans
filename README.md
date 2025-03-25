@@ -8,10 +8,10 @@ Normalized Matching Transformer (NMT) is an end-to-end deep learning pipeline th
 ## Results
 
 ### PascalVOC
-![pascalVOC results](./misc/pascalVOC.png)
+![pascalVOC results](./misc/voc_results.png)
 
 ### Spair-71k
-![spair results](./misc/spair.png)
+![spair results](./misc/spair_results.png)
 
 ## Requirements
 We use `CUDA 12.4` and `GCC 11.4.0`. All needed packages and libraries are in `environment.yml`.
