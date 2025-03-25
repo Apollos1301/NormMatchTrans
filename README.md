@@ -39,5 +39,5 @@ All Parameters are in the `experiments/` folder.
 ```bash
 python -m torch.distributed.run --nproc_per_node=1 train_eval.py ./experiments/voc_basic.json
 ```
-- `--nproc_per_node=1` sets how many GPUs you want to run the model on.
+- `--nproc_per_node=1` sets how many GPUs you want to run the model on (for now use 1 GPU to get same results).
 - `./experiments/voc_basic.json` is which Parameters and Dataset to use. Other option would be `./experiments/spair.json`.
