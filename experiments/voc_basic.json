@@ -33,6 +33,7 @@
     "clip_norm": 0,
     "weight_decay": 0,
     "num_graphs_in_matching_instance": 2,
+    "layer_loss_param": 0.3,
     "temperature": 0.1
   },
   "STATISTIC_STEP": 1,

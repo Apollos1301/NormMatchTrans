@@ -440,7 +440,7 @@ class Layer(nn.Module):
         # eigen learning rate vector
         self.alpha_M = Scale(cfg.dim, init = 0.05, scale = 1. / math.sqrt(cfg.dim), device=self.device) #init= 0.05
         
-        self.layerLoss = LayerLoss()
+        self.layerLoss = LayerLoss(cfg.layer_loss_param)
         
     def forward(self, h: torch.Tensor, m: torch.Tensor, padding_mask, freqs, is_eval) -> torch.Tensor: #freqs: dict, 
         """

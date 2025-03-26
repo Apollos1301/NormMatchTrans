@@ -51,6 +51,7 @@ class ModelConfig:
     num_layers: int = 6
     num_heads: int = 4 # number of heads in the multi-head attention mechanism
     mlp_hidden_mult: float = 4
+    layer_loss_param: float = 0.3
 
 class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
     def __init__(self):
@@ -78,6 +79,7 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
         nGPT_decoder_config.num_layers = cfg.Matching_TF.n_decoder
         nGPT_decoder_config.num_heads = cfg.Matching_TF.n_head # number of heads in the multi-head attention mechanism
         nGPT_decoder_config.mlp_hidden_mult = cfg.Matching_TF.nGPT_mlp_hidden_mult
+        nGPT_decoder_config.layer_loss_param = cfg.TRAIN.layer_loss_param
         self.n_gpt_decoder = NGPT_DECODER(nGPT_decoder_config)
         
         self.n_gpt_decoder_2 = NGPT_DECODER(nGPT_decoder_config)
