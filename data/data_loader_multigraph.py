@@ -249,7 +249,7 @@ def cutmix_with_keypoints_indices(image, sampled_image, keypoints, cutmix_prob=0
     if image is None:
         return image.copy(), np.empty((0,), dtype=int)
     
-    if hasattr(image, 'shape'):
+    if not hasattr(image, 'shape'):
         return image.copy(), np.empty((0,), dtype=int)
     # Sample lambda from a Beta distribution.
     lam = np.random.beta(beta, beta)
