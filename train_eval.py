@@ -70,7 +70,7 @@ lr_schedules = {
     "long_halving2": (32, (10, 15, 30), 0.1),
     "long_halving3": (32, (2, 3, 5), 0.1),
     "long_halving4": (32, (2, 4, 6), 0.1),
-    "long_halving5": (32, (2, 5, 7), 0.1),
+    "long_halving5": (32, (2, 5), 0.1),
     "short_halving": (2, (1,), 0.5),
     "long_nodrop": (10, (10,), 1.0),
     "minirun": (1, (10,), 1.0),
