@@ -27,6 +27,7 @@ class InfoNCE_Loss(torch.nn.Module):
     def __init__(self, temperature):
         super(InfoNCE_Loss, self).__init__()
         self.temperature = torch.tensor(temperature, dtype=torch.float32)
+        #self.temperature = torch.nn.Parameter(torch.tensor(temperature, dtype=torch.float32))
     def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, similarity_tensor_2, pos_indices_2):
         source_sim_numer = torch.bmm(source_Points, source_Points.transpose(1, 2))
         source_sim_normed1 = torch.norm(source_Points, p=2, dim=-1).clamp(min=1e-8).unsqueeze(2)
