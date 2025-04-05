@@ -131,18 +131,12 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         if local_rank == output_rank:
             print(f"Evaluating without training...")
             evaluation_epoch = 5
-            accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank, eval_epoch=evaluation_epoch)
+            accs, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank, eval_epoch=evaluation_epoch)
             all_error_dict[evaluation_epoch] = error_dict
             acc_dict = {
                 "acc_{}".format(cls): single_acc for cls, single_acc in zip(dataloader["train"].dataset.classes, accs)
             }
-            f1_dict = {
-                "f1_{}".format(cls): single_f1_score
-                for cls, single_f1_score in zip(dataloader["train"].dataset.classes, f1_scores)
-            }
-            acc_dict.update(f1_dict)
             acc_dict["matching_accuracy"] = torch.mean(accs)
-            acc_dict["f1_score"] = torch.mean(f1_scores)
 
             time_elapsed = time.time() - since
             print(
@@ -325,7 +319,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
             print(f'completed in {epoch_time:.2f}s ({epoch_time/60:.2f}m)')
         if (epoch+1) % cfg.STATISTIC_STEP == 0:
             if local_rank == output_rank:
-                accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
+                accs, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
                 all_error_dict[epoch+1] = error_dict
                 # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1, "mean test_acc": torch.mean(accs), "mean test_f1": torch.mean(f1_scores)})
         
