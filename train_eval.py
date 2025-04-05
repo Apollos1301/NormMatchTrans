@@ -286,15 +286,15 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 
                 
                 batch_correct, batch_total_valid = calculate_correct_and_valid(prediction_tensor, y_values_matching)
-                _tp, _fp, _fn = calculate_f1_score(prediction_tensor, y_values_matching)
+                # _tp, _fp, _fn = calculate_f1_score(prediction_tensor, y_values_matching)
                 
 
                 # Accumulate batch statistics
                 epoch_correct += batch_correct
                 epoch_total_valid += batch_total_valid
-                tp += _tp
-                fp += _fp
-                fn += _fn
+                # tp += _tp
+                # fp += _fp
+                # fn += _fn
                 
                 
                 
@@ -305,11 +305,11 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         
         # Calculate final metrics
            
-        precision_global = tp / (tp + fp + 1e-8)
-        recall_global = tp / (tp + fn + 1e-8)
+        # precision_global = tp / (tp + fp + 1e-8)
+        # recall_global = tp / (tp + fn + 1e-8)
         
         # Global F1 score
-        epoch_f1 = 2 * (precision_global * recall_global) / (precision_global + recall_global + 1e-8)
+        # epoch_f1 = 2 * (precision_global * recall_global) / (precision_global + recall_global + 1e-8)
         
         if epoch_total_valid > 0:
             epoch_acc = epoch_correct / epoch_total_valid
@@ -321,7 +321,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         epoch_time = time.time() - running_since
         if local_rank == output_rank:
             # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
-            print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}, epoch f1_score: {epoch_f1}')
+            print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}')
             print(f'completed in {epoch_time:.2f}s ({epoch_time/60:.2f}m)')
         if (epoch+1) % cfg.STATISTIC_STEP == 0:
             if local_rank == output_rank:

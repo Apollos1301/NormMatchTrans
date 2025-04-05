@@ -147,14 +147,14 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
                     result_dict[e.item()][0] += 1
                     result_dict[e.item()][1] += error_list[idx,:e.item()]
                 # Iterate through the batch
-                _tp, _fp, _fn = calculate_f1_score(prediction_tensor, y_values_matching)
+                # _tp, _fp, _fn = calculate_f1_score(prediction_tensor, y_values_matching)
 
                 
                 epoch_correct += batch_correct
                 epoch_total_valid += batch_total_valid
-                tp += _tp
-                fp += _fp
-                fn += _fn
+                # tp += _tp
+                # fp += _fp
+                # fn += _fn
             
             if iter_num % 40 == 0 and verbose: #cfg.STATISTIC_STEP
                 running_speed = 40 * batch_num / (time.time() - running_since) #cfg.STATISTIC_STEP
@@ -169,16 +169,16 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         else:
             epoch_acc = 0.0
 
-        precision_global = tp / (tp + fp + 1e-8)
-        recall_global = tp / (tp + fn + 1e-8)
+        # precision_global = tp / (tp + fp + 1e-8)
+        # recall_global = tp / (tp + fn + 1e-8)
         
         # Global F1 score
-        epoch_f1 = 2 * (precision_global * recall_global) / (precision_global + recall_global + 1e-8)
+        # epoch_f1 = 2 * (precision_global * recall_global) / (precision_global + recall_global + 1e-8)
         
         accs[i] = epoch_acc
-        f1_scores[i] = epoch_f1
+        # f1_scores[i] = epoch_f1
         if verbose:
-            print("Class {} acc = {:.4f} F1 = {:.4f}".format(cls, accs[i], f1_scores[i]))
+            print("Class {} acc = {:.4f}".format(cls, accs[i]))
             
         error_dist_dict[cls] = result_dict
         
@@ -190,9 +190,9 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
     ds.cls = cls_cache
 
     print("Matching accuracy")
-    for cls, single_acc, f1_sc in zip(classes, accs, f1_scores):
-        print("{} = {:.4f}, {:.4f}".format(cls, single_acc, f1_sc))
-    print("average = {:.4f}, {:.4f}".format(torch.mean(accs), torch.mean(f1_scores)))
+    for cls, single_acc in zip(classes, accs):
+        print("{} = {:.4f}".format(cls, single_acc))
+    print("average = {:.4f}".format(torch.mean(accs)))
 
 
-    return accs, f1_scores, error_dist_dict
+    return accs, error_dist_dict
