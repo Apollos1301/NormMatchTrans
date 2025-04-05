@@ -318,16 +318,17 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         
         
         epoch_loss = epoch_loss / dataset_size
-        
+        epoch_time = time.time() - running_since
+        if local_rank == output_rank:
+            # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
+            print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}, epoch f1_score: {epoch_f1}')
+            print(f'completed in {epoch_time:.2f}s ({epoch_time/60:.2f}m)')
         if (epoch+1) % cfg.STATISTIC_STEP == 0:
             if local_rank == output_rank:
                 accs, f1_scores, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
                 all_error_dict[epoch+1] = error_dict
                 # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1, "mean test_acc": torch.mean(accs), "mean test_f1": torch.mean(f1_scores)})
         
-        if local_rank == output_rank:
-            # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
-            print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}, epoch f1_score: {epoch_f1}')
         
         if cfg.save_checkpoint and local_rank == output_rank:
             base_path = Path(checkpoint_path / "{:04}".format(epoch + 1))
