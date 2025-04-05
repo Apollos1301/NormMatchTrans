@@ -418,7 +418,7 @@ if __name__ == "__main__":
 
     new_params = [param for param in model.module.parameters() if id(param) not in backbone_ids]
     
-    scaled_LR = cfg.TRAIN.LR * math.sqrt(world_size)
+    scaled_LR = cfg.TRAIN.LR# * math.sqrt(world_size)
     opt_params = [
         dict(params=backbone_params, lr=scaled_LR * 0.03),
         dict(params=new_params, lr=scaled_LR),
