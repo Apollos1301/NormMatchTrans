@@ -107,7 +107,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
     dataset_size = len(dataloader["train"].dataset)
     all_error_dict = {}
 
-    device = next(model.module.parameters()).device
+    device = next(model.parameters()).device
     if local_rank == output_rank:
         print("Start training...")
         print("NMT model on device: {}".format(device))
@@ -119,7 +119,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
     if resume:
         params_path = os.path.join(cfg.warmstart_path, f"params.pt")
         print("Loading model parameters from {}".format(params_path))
-        model.module.load_state_dict(torch.load(params_path, map_location=f'cuda:{local_rank}'))
+        model.load_state_dict(torch.load(params_path, map_location=f'cuda:{local_rank}'))
 
         optim_path = os.path.join(cfg.warmstart_path, f"optim.pt")
         print("Loading optimizer state from {}".format(optim_path))
@@ -160,7 +160,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         if local_rank == output_rank:
             print("Epoch {}/{}".format(epoch, num_epochs - 1))
             print("-" * 10)
-        model.module.train()  # Set model to training mode
+        model.train()  # Set model to training mode
 
         if local_rank == output_rank:
             print("lr = " + ", ".join(["{:.2e}".format(x["lr"]) for x in optimizer.param_groups]))
@@ -225,12 +225,9 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 loss = criterion(similarity_scores, y_values_, s_points, t_points, similarity_scores_2, y_values_2) #, prototype_score
                 loss = loss + layer_loss
                 loss.backward()
-                # for param in model.parameters():
-                #     dist.all_reduce(param.grad, op=dist.ReduceOp.AVG)
-
                 
                 if max_norm > 0:
-                    for name, param in model.module.named_parameters():
+                    for name, param in model.named_parameters():
                         if param.grad is not None:
                             torch.nn.utils.clip_grad_norm_(param, max_norm)
                         
@@ -331,7 +328,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
             base_path = Path(checkpoint_path / "{:04}".format(epoch + 1))
             Path(base_path).mkdir(parents=True, exist_ok=True)
             path = str(base_path / "params.pt")
-            torch.save(model.module.state_dict(), path)
+            torch.save(model.state_dict(), path)
             torch.save(optimizer.state_dict(), str(base_path / "optim.pt"))
         scheduler.step()
         
@@ -344,21 +341,15 @@ if __name__ == "__main__":
     # print('Using config file from: ', os.sys.argv[1])
     cfg = update_params_from_cmdline(default_params=cfg)
     
-    device = torch.device("cuda", int(os.environ["LOCAL_RANK"]))
-    torch.cuda.set_device(device)
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    local_rank = int(os.environ['LOCAL_RANK']) 
-    output_rank = 0
-    
     #windows
     # dist.init_process_group(backend='gloo', init_method='env://')
     
     #linux
-    dist.init_process_group(backend='nccl', rank=local_rank, init_method='env://', timeout=timedelta(minutes=60))
+    dist.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=60))
     
-    dist.barrier()
-    
-    
+    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    local_rank = int(os.environ['LOCAL_RANK']) 
+    output_rank = 0
     
     import json
     import os
@@ -391,24 +382,26 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(cfg.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     
-    per_gpu_batch_size = cfg.BATCH_SIZE // world_size
-    
-    dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * per_gpu_batch_size, "test": cfg.EVAL.SAMPLES * world_size} # 
+    dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
     image_dataset = {
         x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
     }
     
     sampler = {
-    "train": DistributedSampler(image_dataset["train"], shuffle=True),
-    "test": DistributedSampler(image_dataset["test"], shuffle=True)
+    "train": DistributedSampler(image_dataset["train"]),
+    "test": DistributedSampler(image_dataset["test"])
     }
     
     dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
 
-    model = NMT().to(device)
+    model = NMT()
         
-    model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
     
+    torch.cuda.set_device(local_rank)
+    device = torch.device(f'cuda:{local_rank}')
+    
+    model = model.to(device)
+    model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     # criterion = torch.nn.CrossEntropyLoss()
     criterion = InfoNCE_Loss(temperature=cfg.TRAIN.temperature)
@@ -416,12 +409,10 @@ if __name__ == "__main__":
 
     backbone_ids = [id(item) for item in backbone_params]
 
-    new_params = [param for param in model.module.parameters() if id(param) not in backbone_ids]
-    
-    scaled_LR = cfg.TRAIN.LR# * math.sqrt(world_size)
+    new_params = [param for param in model.parameters() if id(param) not in backbone_ids]
     opt_params = [
-        dict(params=backbone_params, lr=scaled_LR * 0.03),
-        dict(params=new_params, lr=scaled_LR),
+        dict(params=backbone_params, lr=cfg.TRAIN.LR * 0.03),
+        dict(params=new_params, lr=cfg.TRAIN.LR),
     ]
     optimizer = optim.Adam(opt_params, weight_decay=cfg.TRAIN.weight_decay)
     

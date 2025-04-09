@@ -44,10 +44,10 @@ class GMDataset(Dataset):
         self.cls = None
         #TODO: Hard-coded to 2 graphs  
         self.num_graphs_in_matching_instance = 2
-        self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(1, 2),
+        self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(1, 3),
                                         hole_height_range=(20, 40),
                                         hole_width_range=(20, 40),
-                                        p=0.3)],
+                                        p=0.25)],
                                      keypoint_params=A.KeypointParams(format="xy", remove_invisible=True, label_fields=['class_labels']))
         self.aug_pipeline = A.Compose([#A.HueSaturationValue(p=0.5),
                                        #A.RandomGamma(p=0.5),
@@ -174,13 +174,13 @@ class GMDataset(Dataset):
             
             #MixUp
             alpha = 0.8
-            mixup_prob = 0.3
+            mixup_prob = 0.5
             if np.random.rand() < mixup_prob:
-                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                lam = np.clip(np.random.beta(alpha, alpha), 0.3, 0.7)
                 imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
                 imgs[0] = imgs[0].astype(np.float32)
             if np.random.rand() < mixup_prob:
-                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                lam = np.clip(np.random.beta(alpha, alpha), 0.3, 0.7)
                 imgs[1] = lam*imgs[1] + (1.0 - lam)*random_mixUP_img
                 imgs[1] = imgs[1].astype(np.float32)
         
@@ -225,7 +225,7 @@ class GMDataset(Dataset):
 
 import numpy as np
 
-def cutmix_with_keypoints_indices(image, sampled_image, keypoints, cutmix_prob=0.3, beta=1.0, max_cut_ratio=0.3):
+def cutmix_with_keypoints_indices(image, sampled_image, keypoints, cutmix_prob=0.5, beta=1.0, max_cut_ratio=0.3):
     """
     Applies CutMix augmentation on an input image and returns the indices of keypoints removed.
     The size of the cut region is limited by max_cut_ratio.
