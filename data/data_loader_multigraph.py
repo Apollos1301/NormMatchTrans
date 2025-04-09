@@ -47,7 +47,7 @@ class GMDataset(Dataset):
         self.aug_erasing = A.Compose([A.CoarseDropout(num_holes_range=(1, 2),
                                         hole_height_range=(20, 40),
                                         hole_width_range=(20, 40),
-                                        p=0.3)],
+                                        p=cfg.TRAIN.random_erasing_prob)],
                                      keypoint_params=A.KeypointParams(format="xy", remove_invisible=True, label_fields=['class_labels']))
         self.aug_pipeline = A.Compose([#A.HueSaturationValue(p=0.5),
                                        #A.RandomGamma(p=0.5),
@@ -156,7 +156,7 @@ class GMDataset(Dataset):
                 points_gt[1] = np.delete(points_gt[1], column_indices, axis=0)
             
             
-            img_cutMix, cutMix_rm_kp = cutmix_with_keypoints_indices(imgs[0], random_cutMix_img, points_gt[0])
+            img_cutMix, cutMix_rm_kp = cutmix_with_keypoints_indices(imgs[0], random_cutMix_img, points_gt[0], cutmix_prob=cfg.TRAIN.cutmix_prob, beta=cfg.TRAIN.cutmix_beta)
             
             if len(cutMix_rm_kp) < len(points_gt[0]):
                 imgs[0] = img_cutMix
@@ -173,8 +173,8 @@ class GMDataset(Dataset):
             n_points_gt = [len(p_gt) for p_gt in points_gt]
             
             #MixUp
-            alpha = 0.8
-            mixup_prob = 0.3
+            alpha = cfg.TRAIN.mixup_alpha
+            mixup_prob = cfg.TRAIN.mixup_prob
             if np.random.rand() < mixup_prob:
                 lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
                 imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
