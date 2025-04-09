@@ -374,7 +374,7 @@ def get_dataloader(dataset, data_sampler, fix_seed=True, shuffle=False):
         batch_size=cfg.BATCH_SIZE,
         sampler=data_sampler,
         shuffle=shuffle,
-        num_workers=4,
+        num_workers=10,
         collate_fn=collate_fn,
         pin_memory=False,
         worker_init_fn=worker_init_fix if fix_seed else worker_init_rand,
