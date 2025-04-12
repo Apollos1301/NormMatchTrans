@@ -7,7 +7,12 @@
     "EPOCH_ITERS": 2000,
     "lr_schedule": "long_halving5",
     "LR": 0.0005,
-    "difficulty_params": {}
+    "difficulty_params": {},
+    "random_erasing_prob": 0.25,
+    "cutmix_prob": 0.25,
+    "cutmix_beta": 1.0,
+    "mixup_prob": 0.5,
+    "mixup_alpha": 0.8
   },
   "EVAL": {
     "SAMPLES": 1000,

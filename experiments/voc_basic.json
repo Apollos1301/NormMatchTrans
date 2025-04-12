@@ -35,10 +35,10 @@
     "num_graphs_in_matching_instance": 2,
     "layer_loss_param": 0.3,
     "temperature": 0.1,
-    "random_erasing_prob": 0.25,
-    "cutmix_prob": 0.25,
+    "random_erasing_prob": 0.3,
+    "cutmix_prob": 0.3,
     "cutmix_beta": 1.0,
-    "mixup_prob": 0.5,
+    "mixup_prob": 0.3,
     "mixup_alpha": 0.8
   },
   "STATISTIC_STEP": 1,

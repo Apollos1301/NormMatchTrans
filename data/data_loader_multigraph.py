@@ -176,11 +176,11 @@ class GMDataset(Dataset):
             alpha = cfg.TRAIN.mixup_alpha
             mixup_prob = cfg.TRAIN.mixup_prob
             if np.random.rand() < mixup_prob:
-                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                lam = np.clip(np.random.beta(alpha, alpha), 0.3, 0.7)
                 imgs[0] = lam*imgs[0] + (1.0 - lam)*random_mixUP_img
                 imgs[0] = imgs[0].astype(np.float32)
             if np.random.rand() < mixup_prob:
-                lam = np.clip(np.random.beta(alpha, alpha), 0.4, 0.6)
+                lam = np.clip(np.random.beta(alpha, alpha), 0.3, 0.7)
                 imgs[1] = lam*imgs[1] + (1.0 - lam)*random_mixUP_img
                 imgs[1] = imgs[1].astype(np.float32)
         
