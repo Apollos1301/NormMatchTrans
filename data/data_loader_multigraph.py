@@ -10,6 +10,7 @@ from data.SPair71k import SPair71k
 from utils.build_graphs import build_graphs
 import albumentations as A
 import os
+import glob
 from PIL import Image
 
 
@@ -57,8 +58,13 @@ class GMDataset(Dataset):
                                        A.RandomBrightnessContrast(p=0.1)],
                                       keypoint_params=A.KeypointParams(format="xy", remove_invisible=False))
         self.added_data = []
-        self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
+        self.folder_path = ''
+        if name == 'PascalVOC':
+            self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
+        else:
+            self.folder_path = './data/downloaded/SPair-71k/JPEGImages'
         self.filenames = os.listdir(self.folder_path)
+        self.SPair_classes = list(map(lambda x: os.path.basename(x), glob.glob("%s/*" % "./data/downloaded/SPair-71k/JPEGImages")))
         random.seed(cfg.RANDOM_SEED)
         np.random.seed(cfg.RANDOM_SEED)
         torch.manual_seed(cfg.RANDOM_SEED)
@@ -81,15 +87,25 @@ class GMDataset(Dataset):
         return self.length + self.added_length
 
     def __getitem__(self, idx):
-        random_mixUP_img_idx = random.randint(0, len(self.filenames)-1)
-        random_mixUP_img_path = os.path.join(self.folder_path, self.filenames[random_mixUP_img_idx])
+        if self.name == 'PascalVOC':
+            random_mixUP_img_idx = random.randint(0, len(self.filenames)-1)
+            random_mixUP_img_path = os.path.join(self.folder_path, self.filenames[random_mixUP_img_idx])
+            random_cutMix_img_idx = random.randint(0, len(self.filenames)-1)
+            random_cutMix_img_path = os.path.join(self.folder_path, self.filenames[random_cutMix_img_idx])
+        else:
+            random_class = self.SPair_classes[random.randint(0, len(self.SPair_classes)-1)]
+            random_class_path = os.path.join(self.folder_path, random_class)
+            random_class_files = os.listdir(random_class_path)
+            random_mixUP_img_idx = random.randint(0, len(random_class_files)-1)
+            random_mixUP_img_path = os.path.join(random_class_path, random_class_files[random_mixUP_img_idx])
+            random_cutMix_img_idx = random.randint(0, len(random_class_files)-1)
+            random_cutMix_img_path = os.path.join(random_class_path, random_class_files[random_cutMix_img_idx])
+        
         with Image.open(str(random_mixUP_img_path)) as img:
             random_mixUP_img = img.resize(self.obj_size, resample=Image.BICUBIC)
         random_mixUP_img = np.array(random_mixUP_img)
         
         
-        random_cutMix_img_idx = random.randint(0, len(self.filenames)-1)
-        random_cutMix_img_path = os.path.join(self.folder_path, self.filenames[random_cutMix_img_idx])
         with Image.open(str(random_cutMix_img_path)) as img:
             random_cutMix_img = img.resize(self.obj_size, resample=Image.BICUBIC)
         random_cutMix_img = np.array(random_cutMix_img)
