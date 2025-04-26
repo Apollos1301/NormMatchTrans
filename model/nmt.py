@@ -57,11 +57,13 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
     def __init__(self):
         super(NMT, self).__init__()
         self.model_name = 'Transformer'
-        self.psi = SConv(input_features=cfg.SPLINE_CNN.input_features, output_features=cfg.Matching_TF.d_model)
+        self.psi = SConv(input_features=128, output_features=128)
         
         self.vit_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features, cfg.Matching_TF.d_model)
         self.glob_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features//2, cfg.Matching_TF.d_model)
 
+        self.swin_to_psi = nn.Linear(cfg.SPLINE_CNN.input_features, 128)
+        self.psi_to_model = nn.Linear(128, cfg.Matching_TF.d_model)
         
         self.pos_encoding = Pointwise2DPositionalEncoding(cfg.Matching_TF.d_model, 256, 256).cuda()
 
@@ -190,9 +192,9 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
             
             # node_features = torch.cat((gmt_U, gmt_F), dim=-1)
             
+            down_node_features = self.swin_to_psi(node_features)
             
-            
-            graph.x = node_features
+            graph.x = down_node_features
             # for visualisation purposes only
             graph_list.append(graph.to_data_list())
 
@@ -200,6 +202,7 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
             vit_features = self.vit_to_node_dim(node_features)
             # splineCNN spatial features 
             h = self.psi(graph)
+            h = self.psi_to_model(h)
             h_res = h + vit_features
                             
             (h_res, mask) = to_dense_batch(h_res, graph.batch, fill_value=0)

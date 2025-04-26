@@ -47,10 +47,15 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         if local_rank == output_rank:
             print("Loading model parameters from {}".format(model_path))
         model.load_state_dict(torch.load(model_path))
+        psi_state_dict = model.module.psi.state_dict()
+        print("______________________________________________")
+        print(psi_state_dict)
+        torch.save(psi_state_dict, './splinecnn_weights.pt')
 
     was_training = model.training
     model.eval()
-
+    
+    br
     ds = dataloader.dataset
     ds.set_num_graphs(cfg.EVAL.num_graphs_in_matching_instance)
     classes = ds.classes
