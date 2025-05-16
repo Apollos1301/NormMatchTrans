@@ -130,7 +130,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         # assert resume
         if local_rank == output_rank:
             print(f"Evaluating without training...")
-            evaluation_epoch = 5
+            evaluation_epoch = 10
             accs, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank, eval_epoch=evaluation_epoch)
             all_error_dict[evaluation_epoch] = error_dict
             acc_dict = {
@@ -342,10 +342,10 @@ if __name__ == "__main__":
     cfg = update_params_from_cmdline(default_params=cfg)
     
     #windows
-    # dist.init_process_group(backend='gloo', init_method='env://')
+    dist.init_process_group(backend='gloo', init_method='env://', timeout=timedelta(minutes=60))
     
     #linux
-    dist.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=60))
+    # dist.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=60))
     
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     local_rank = int(os.environ['LOCAL_RANK']) 

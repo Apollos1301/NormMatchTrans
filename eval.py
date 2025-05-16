@@ -51,11 +51,11 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         print("______________________________________________")
         print(psi_state_dict)
         torch.save(psi_state_dict, './splinecnn_weights.pt')
+        br
 
     was_training = model.training
     model.eval()
     
-    br
     ds = dataloader.dataset
     ds.set_num_graphs(cfg.EVAL.num_graphs_in_matching_instance)
     classes = ds.classes
