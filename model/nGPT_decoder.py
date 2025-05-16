@@ -1,4 +1,3 @@
-# Heavily simplified & edited from my templateGPT repo: https://github.com/evintunador/templateGPT
 import math
 import torch
 import torch.nn as nn
