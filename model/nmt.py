@@ -63,7 +63,7 @@ class NMT(utils.backbone.SwinV2): #Gmt_base #Vit_base
         self.glob_to_node_dim = nn.Linear(cfg.SPLINE_CNN.input_features//2, cfg.Matching_TF.d_model)
 
         
-        self.pos_encoding = Pointwise2DPositionalEncoding(cfg.Matching_TF.d_model, 256, 256).cuda()
+        self.pos_encoding = Pointwise2DPositionalEncoding(cfg.Matching_TF.d_model, 256, 256)
 
         # self.tf_encoder_layer = nn.TransformerEncoderLayer(d_model= cfg.Matching_TF.d_model, 
         #                                                    nhead= cfg.Matching_TF.n_head, 

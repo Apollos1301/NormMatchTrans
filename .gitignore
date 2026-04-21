@@ -9,3 +9,10 @@ __pycache__
 screenlog*
 *.csv
 run_script.csv
+*.log
+*.pt
+*.pth
+*.ckpt
+*.tar
+*.zip
+*.tar.gz

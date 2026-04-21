@@ -57,8 +57,23 @@ class GMDataset(Dataset):
                                        A.RandomBrightnessContrast(p=0.1)],
                                       keypoint_params=A.KeypointParams(format="xy", remove_invisible=False))
         self.added_data = []
-        self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
-        self.filenames = os.listdir(self.folder_path)
+        if cfg.DATASET_NAME == "PascalVOC":
+            self.folder_path = os.path.join(cfg.VOC2011.ROOT_DIR, "JPEGImages")
+        elif cfg.DATASET_NAME == "SPair71k":
+            self.folder_path = os.path.join(cfg.SPair.ROOT_DIR, "JPEGImages")
+        elif hasattr(cfg, "WILLOW"):
+            self.folder_path = cfg.WILLOW.ROOT_DIR
+        else:
+            self.folder_path = './data/downloaded/PascalVOC/VOC2011/JPEGImages'
+        
+        self.filenames = []
+        self.file_paths = []
+        if os.path.exists(self.folder_path):
+            for root, _, files in os.walk(self.folder_path):
+                for f in files:
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        self.file_paths.append(os.path.join(root, f))
+            
         random.seed(cfg.RANDOM_SEED)
         np.random.seed(cfg.RANDOM_SEED)
         torch.manual_seed(cfg.RANDOM_SEED)
@@ -74,25 +89,28 @@ class GMDataset(Dataset):
         self.num_graphs_in_matching_instance = num_graphs_in_matching_instance
         
     def inject_new_data(self, new_data):
-        self.added_data.append[new_data]
+        self.added_data.append(new_data)
         self.added_length += 1
 
     def __len__(self):
         return self.length + self.added_length
 
     def __getitem__(self, idx):
-        random_mixUP_img_idx = random.randint(0, len(self.filenames)-1)
-        random_mixUP_img_path = os.path.join(self.folder_path, self.filenames[random_mixUP_img_idx])
-        with Image.open(str(random_mixUP_img_path)) as img:
-            random_mixUP_img = img.resize(self.obj_size, resample=Image.BICUBIC)
-        random_mixUP_img = np.array(random_mixUP_img)
-        
-        
-        random_cutMix_img_idx = random.randint(0, len(self.filenames)-1)
-        random_cutMix_img_path = os.path.join(self.folder_path, self.filenames[random_cutMix_img_idx])
-        with Image.open(str(random_cutMix_img_path)) as img:
-            random_cutMix_img = img.resize(self.obj_size, resample=Image.BICUBIC)
-        random_cutMix_img = np.array(random_cutMix_img)
+        if len(self.file_paths) > 0:
+            random_mixUP_img_idx = random.randint(0, len(self.file_paths)-1)
+            random_mixUP_img_path = self.file_paths[random_mixUP_img_idx]
+            with Image.open(str(random_mixUP_img_path)) as img:
+                random_mixUP_img = img.resize(self.obj_size, resample=Image.BICUBIC)
+            random_mixUP_img = np.array(random_mixUP_img)
+            
+            random_cutMix_img_idx = random.randint(0, len(self.file_paths)-1)
+            random_cutMix_img_path = self.file_paths[random_cutMix_img_idx]
+            with Image.open(str(random_cutMix_img_path)) as img:
+                random_cutMix_img = img.resize(self.obj_size, resample=Image.BICUBIC)
+            random_cutMix_img = np.array(random_cutMix_img)
+        else:
+            random_mixUP_img = np.zeros((self.obj_size[1], self.obj_size[0], 3), dtype=np.uint8)
+            random_cutMix_img = np.zeros((self.obj_size[1], self.obj_size[0], 3), dtype=np.uint8)
             
         sampling_strategy = cfg.train_sampling if self.ds.sets == "train" else cfg.eval_sampling
         if self.num_graphs_in_matching_instance is None:

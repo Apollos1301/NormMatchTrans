@@ -1,6 +1,13 @@
 {
+  "USE_SYNTHETIC": false,
   "BATCH_SIZE": 8,
   "DATASET_NAME": "PascalVOC",
+  "BACKBONE_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/checkpoints",
+  "VOC2011": {
+    "ROOT_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/downloaded/PascalVOC/VOC2011/",
+    "SET_SPLIT": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/split/voc2011_pairs.npz",
+    "KPT_ANNO_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/downloaded/PascalVOC/annotations/"
+  },
   "exclude_willow_classes": false,
   "EVAL": {
     "SAMPLES": 1000,
@@ -48,6 +55,6 @@
     "reduced_vis": true
   },
   "evaluate_only": false,
-  "model_dir": "./results/voc_basic/nmt",
+  "model_dir": "./results/voc_basic/nmt_new",
   "log_dir": "runs/"
 }

@@ -28,12 +28,13 @@ class SPair71k:
         :param obj_resize: resized object size
         """
         self.sets = sets_translation_dict[sets]
-        self.ann_files = open(os.path.join(layout_path, dataset_size, self.sets + ".txt"), "r").read().split("\n")
+        self.ann_files = open(os.path.join(cfg.SPair.ROOT_DIR + "/Layout", cfg.SPair.size, self.sets + ".txt"), "r").read().split("\n")
         self.ann_files = self.ann_files[: len(self.ann_files) - 1]
+        self.ann_files = [f.replace(":", "_") for f in self.ann_files] # Fix for SPair71k Layout format mismatching PairAnnotation format
         self.difficulty_params = difficulty_params_dict[self.sets]
-        self.pair_ann_path = pair_ann_path
-        self.image_path = image_path
-        self.classes = list(map(lambda x: os.path.basename(x), glob.glob("%s/*" % image_path)))
+        self.pair_ann_path = cfg.SPair.ROOT_DIR + "/PairAnnotation"
+        self.image_path = cfg.SPair.ROOT_DIR + "/JPEGImages"
+        self.classes = list(map(lambda x: os.path.basename(x), glob.glob("%s/*" % self.image_path)))
         self.classes.sort()
         self.obj_resize = obj_resize
         self.combine_classes = cfg.combine_classes

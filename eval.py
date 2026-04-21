@@ -83,12 +83,12 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
         epoch_correct = 0
         epoch_total_valid = 0
         for k, inputs in enumerate(dataloader):
-            data_list = [_.cuda() for _ in inputs["images"]]
+            data_list = [_.to(device) for _ in inputs["images"]]
 
-            points_gt = [_.cuda() for _ in inputs["Ps"]]
-            n_points_gt = [_.cuda() for _ in inputs["ns"]]
-            edges = [_.to("cuda") for _ in inputs["edges"]]
-            perm_mat_list = [perm_mat.cuda() for perm_mat in inputs["gt_perm_mat"]]
+            points_gt = [_.to(device) for _ in inputs["Ps"]]
+            n_points_gt = [_.to(device) for _ in inputs["ns"]]
+            edges = [_.to(device) for _ in inputs["edges"]]
+            perm_mat_list = [perm_mat.to(device) for perm_mat in inputs["gt_perm_mat"]]
 
             batch_num = data_list[0].size(0)
             num_nodes_s = points_gt[0].size(1)
@@ -107,33 +107,20 @@ def eval_model(model, dataloader, local_rank, output_rank, eval_epoch=None, verb
                 n_points_sample = n_points_gt[0]
                 
                 eval_pred_points = 0
-                j_pred = 0
-                predictions_list = []
-                # keypoint_order = []
-                for _ in range(B):
-                    predictions_list.append([])
-                    
-                
-                
-                    
                 similarity_scores, _, _, _ = model(data_list, points_gt, edges, n_points_gt, n_points_sample, perm_mat_list, eval_pred_points, in_training= False)
                 
                 batch_size = similarity_scores.shape[0]
                 
                 sinkhorn = sinkhorn_logspace(similarity_scores)
-                
                 sinkhorn_max = torch.argmax(sinkhorn, dim=-1)
-                for np in range(N_t):
-                    for b in range(batch_size):
-                        if eval_pred_points < n_points_gt[0][b]:
-                            predictions_list[b].append(sinkhorn_max[b, eval_pred_points].item())
-                        else:
-                            predictions_list[b].append(-1)
-                    eval_pred_points +=1
                 
+                prediction_tensor = torch.full((batch_size, N_t), -1, dtype=torch.long, device=perm_mat_list[0].device)
+                arange = torch.arange(N_t, device=perm_mat_list[0].device).unsqueeze(0).expand(batch_size, N_t)
+                mask = arange < n_points_gt[0].unsqueeze(-1)
                 
+                # Assign predictions avoiding `.item()` calls. Slice `sinkhorn_max` in case it is padded larger than N_t.
+                prediction_tensor[mask] = sinkhorn_max[:, :N_t][mask]
                 
-                prediction_tensor = torch.tensor(predictions_list).to(perm_mat_list[0].device)
                 y_values_matching = torch.argmax(perm_mat_list[0], dim=-1)
                 batch_correct, batch_total_valid = calculate_correct_and_valid(prediction_tensor, y_values_matching)
                 

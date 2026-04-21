@@ -289,15 +289,15 @@ class PascalVOC:
 
         self.classes_kpts = {cls: len(KPT_NAMES[cls]) for cls in self.classes}
 
-        self.anno_path = Path(anno_path)
-        self.img_path = Path(img_path)
-        self.ori_anno_path = Path(ori_anno_path)
+        self.anno_path = Path(cfg.VOC2011.KPT_ANNO_DIR)
+        self.img_path = Path(cfg.VOC2011.ROOT_DIR + "JPEGImages")
+        self.ori_anno_path = Path(cfg.VOC2011.ROOT_DIR + "Annotations")
         self.obj_resize = obj_resize
         self.sets = sets
 
         assert sets in ["train", "test"], "No match found for dataset {}".format(sets)
         cache_name = "voc_db_" + sets + ".pkl"
-        self.cache_path = Path(cache_path)
+        self.cache_path = Path(cfg.CACHE_PATH)
         self.cache_file = self.cache_path / cache_name
         if self.cache_file.exists():
             with self.cache_file.open(mode="rb") as f:
@@ -306,7 +306,7 @@ class PascalVOC:
         else:
             print("Caching xml list to {}...".format(self.cache_file))
             self.cache_path.mkdir(exist_ok=True, parents=True)
-            with np.load(set_path, allow_pickle=True) as f:
+            with np.load(cfg.VOC2011.SET_SPLIT, allow_pickle=True) as f:
                 self.xml_list = f[sets]
             before_filter = sum([len(k) for k in self.xml_list])
             self.filter_list()

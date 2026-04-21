@@ -63,7 +63,6 @@ class PrecomputeRotaryFrequencies(nn.Module):
         self.device = (('cuda' if torch.cuda.is_available() else
                         'mps' if torch.backends.mps.is_available() else 'cpu')
                         if device is None else device)
-        self.device = device
         self.max_seq_len = max_seq_len
 
         # Compute inverse frequencies

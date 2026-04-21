@@ -10,6 +10,7 @@ cfg = __C
 
 __C.combine_classes = False
 
+__C.BACKBONE_DIR = "./utils/checkpoints"
 # VOC2011-Keypoint Dataset
 # TODO: Hard-coded to absolute paths for debugging. Normal when running the code
 __C.VOC2011 = edict()

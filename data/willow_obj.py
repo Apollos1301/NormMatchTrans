@@ -23,7 +23,7 @@ class WillowObject(BaseDataset):
         self.root_path = Path(cfg.WILLOW.ROOT_DIR)
         self.obj_resize = obj_resize
 
-        assert sets == "train" or "test", "No match found for dataset {}".format(sets)
+        assert sets in ["train", "test"], "No match found for dataset {}".format(sets)
         self.split_offset = cfg.WILLOW.TRAIN_OFFSET
         self.train_len = cfg.WILLOW.TRAIN_NUM
         self.sets = sets

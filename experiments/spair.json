@@ -2,7 +2,11 @@
   "default_json": "experiments/voc_basic.json",
   "BATCH_SIZE": 5,
   "DATASET_NAME": "SPair71k",
-  "model_dir": "./results/spair/",
+  "BACKBONE_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/checkpoints",
+  "SPair": {
+    "ROOT_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/downloaded/SPair-71k"
+  },
+  "model_dir": "./results/spair/nmt/",
   "TRAIN": {
     "EPOCH_ITERS": 2000,
     "lr_schedule": "long_halving5",

@@ -23,18 +23,22 @@ def build_graphs(P_np: np.ndarray, n: int, n_pad: int = None, edge_pad: int = No
     assert edge_pad >= edge_num
 
     edge_list = [[], []]
-    features = []
-    for i in range(n):
-        for j in range(n):
-            if A[i, j] == 1:
-                edge_list[0].append(i)
-                edge_list[1].append(j)
-                features.append(locations_to_features_diffs(*P_np[i], *P_np[j]))
-
-    if not features:
+    
+    # Vectorized edge and feature extraction to avoid slow O(n^2) nested loops
+    row, col = np.nonzero(A[:n, :n])
+    
+    if len(row) > 0:
+        edge_list = [row.tolist(), col.tolist()]
+        x_1, y_1 = P_np[row, 0], P_np[row, 1]
+        x_2, y_2 = P_np[col, 0], P_np[col, 1]
+        features = np.stack([
+            0.5 + 0.5 * (x_1 - x_2) / 384.0, 
+            0.5 + 0.5 * (y_1 - y_2) / 384.0
+        ], axis=1)
+    else:
         features = np.zeros(shape=(0, 2))
 
-    return np.array(edge_list, dtype=int), np.array(features)
+    return np.array(edge_list, dtype=int), features
 
 
 def delaunay_triangulate(P: np.ndarray):
@@ -54,8 +58,14 @@ def delaunay_triangulate(P: np.ndarray):
                 for pair in itertools.permutations(simplex, 2):
                     A[pair] = 1
         except QhullError as err:
-            print("Delaunay triangulation error detected. Return fully-connected graph.")
-            print("Traceback:")
-            print(err)
-            A = np.ones((n, n)) - np.eye(n)
+            try:
+                # Add QJ to joggle the input to avoid coplanar/collinear errors
+                d = Delaunay(P, qhull_options="QJ")
+                A = np.zeros((n, n))
+                for simplex in d.simplices:
+                    for pair in itertools.permutations(simplex, 2):
+                        A[pair] = 1
+            except QhullError as err2:
+                # If it still fails, silently return a fully-connected graph (or optionally log it)
+                A = np.ones((n, n)) - np.eye(n)
     return A

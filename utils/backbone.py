@@ -3,6 +3,7 @@ from torchvision import models
 from utils.vit import *
 from utils.gmt import *
 from utils.swinV2 import *
+from utils.config import cfg
 
 
 class VGG16_base(nn.Module):
@@ -71,7 +72,7 @@ class Vit_base(nn.Module):
         self.backbone_params = list(self.vit.parameters())
 
         # --------------------------load parameters for base ViT-----------------------------------
-        weights_dict = torch.load('./utils/checkpoints/vit_base.pth')
+        weights_dict = torch.load(f'{cfg.BACKBONE_DIR}/vit_base.pth')
         del weights_dict['model']['head.weight']
         del weights_dict['model']['head.bias']
         print(self.vit.load_state_dict(weights_dict['model'], strict=False))
@@ -94,7 +95,7 @@ class Gmt_base(nn.Module):
         self.backbone_params = list(self.gmt.parameters())
 
         # --------------------------load parameters for base Gmt--------------------------
-        weights_dict = torch.load('./utils/checkpoints/vit_base.pth')
+        weights_dict = torch.load(f'{cfg.BACKBONE_DIR}/vit_base.pth')
         del weights_dict['model']['head.weight']
         del weights_dict['model']['head.bias']
         print(self.gmt.load_state_dict(weights_dict['model'], strict=False))
@@ -111,7 +112,7 @@ class SwinV2(nn.Module):
         self.backbone_params = list(self.swin.parameters())
 
         # --------------------------load parameters for base SwinV2--------------------------
-        weights_dict = torch.load('./utils/checkpoints/swinv2_base_patch4_window12to24_192to384_22kto1k_ft.pth')
+        weights_dict = torch.load(f'{cfg.BACKBONE_DIR}/swinv2_base_patch4_window12to24_192to384_22kto1k_ft.pth')
         del weights_dict['model']['head.weight']
         del weights_dict['model']['head.bias']
         print(self.swin.load_state_dict(weights_dict['model'], strict=False))

@@ -1,42 +1,48 @@
 import torch
 from torch import Tensor
-
+import torch.nn.functional as F
 
 def feature_align(raw_feature: Tensor, P: Tensor, ns_t: Tensor, ori_size: tuple, device=None) -> Tensor:
     r"""
-    Perform feature align on the image feature map.
-
-    Feature align performs bi-linear interpolation on the image feature map. This operation is inspired by "ROIAlign"
-    in `Mask R-CNN <https://arxiv.org/abs/1703.06870>`_.
-
-    :param raw_feature: :math:`(b\times c \times w \times h)` raw feature map. :math:`b`: batch size, :math:`c`: number
-     of feature channels, :math:`w`: feature map width, :math:`h`: feature map height
-    :param P: :math:`(b\times n \times 2)` point set containing point coordinates. The coordinates are at the scale of
-     the original image size. :math:`n`: number of points
-    :param ns_t: :math:`(b)` number of exact points. We support batched instances with different number of nodes, and
-     ``ns_t`` is required to specify the exact number of nodes of each instance in the batch.
-    :param ori_size: size of the original image. Since the point coordinates are in the scale of the original image
-     size, this parameter is required.
-    :param device: output device. If not specified, it will be the same as the input
-    :return: :math:`(b\times c \times n)` extracted feature vectors
+    Perform vectorized feature align on the image feature map using grid_sample.
     """
     if device is None:
         device = raw_feature.device
 
-    batch_num = raw_feature.shape[0]
-    channel_num = raw_feature.shape[1]
-    n_max = P.shape[1]
+    batch_size, channels, h_feat, w_feat = raw_feature.shape
+    _, max_points, _ = P.shape
 
-    ori_size = torch.tensor(ori_size, dtype=torch.float32, device=device)
-    F = torch.zeros(batch_num, channel_num, n_max, dtype=torch.float32, device=device)
-    for idx, feature in enumerate(raw_feature):
-        n = ns_t[idx]
-        feat_size = torch.as_tensor(feature.shape[1:3], dtype=torch.float32, device=device)
-        _P = P[idx, 0:n]
-        interp_2d(feature, _P, ori_size, feat_size, out=F[idx, :, 0:n])
-    return F
+    # Map point coordinates from [0, ori_size] directly to [-1, 1] range required by grid_sample
+    # Note P is [x, y], ori_size is (W, H). 
+    # normalize P to [0, 1] then to [-1, 1]
+    ori_w, ori_h = ori_size
+    
+    # Map directly to [-1, 1]. PyTorch's align_corners=False intrinsically handles the -0.5 pixel 
+    # centering, so we don't need to manually subtract step/2 like the old logic did.
+    ori_w, ori_h = ori_size
+    grid_x = P[..., 0] / ori_w * 2.0 - 1.0
+    grid_y = P[..., 1] / ori_h * 2.0 - 1.0
+    
+    grid = torch.stack((grid_x, grid_y), dim=-1).unsqueeze(1)  # Shape: [Batch, 1, max_points, 2]
 
+    # Use PyTorch's highly optimized grid_sample to do bilinear interpolation across the entire batch natively
+    # align_corners=False matches OpenCV/standard image coordinate behavior mapped directly from pixel sizes
+    F_out = F.grid_sample(raw_feature, grid, mode='bilinear', padding_mode='border', align_corners=False)
+    
+    # Remove the dummy H dimension (F_out is [Batch, Channels, 1, max_points])
+    F_out = F_out.squeeze(2)
 
+    # Mask out padded points beyond ns_t sizes to be 0 for exact match of previous logic
+    arange = torch.arange(max_points, device=device).expand(batch_size, max_points)
+    mask = arange >= ns_t.unsqueeze(1)
+    # Mask needs to broadcast over channels: mask is [B, max_points], needs to affect [B, C, max_points]
+    F_out = F_out.transpose(1, 2)
+    F_out[mask] = 0
+    F_out = F_out.transpose(1, 2)
+
+    return F_out
+
+# Keep old functions around just in case, but unused by feature_align now
 def interp_2d(z: Tensor, P: Tensor, ori_size: Tensor, feat_size: Tensor, out=None, device=None) -> Tensor:
     r"""
     Interpolate in 2d grid space. z can be 3-dimensional where the first dimension is feature dimension.

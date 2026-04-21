@@ -4,7 +4,7 @@ import random
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-# import wandb
+import wandb
 
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 import os
 from datetime import timedelta
+from tqdm import tqdm
 
 from data.data_loader_multigraph import GMDataset, get_dataloader
 import eval
@@ -27,6 +28,7 @@ class InfoNCE_Loss(torch.nn.Module):
     def __init__(self, temperature):
         super(InfoNCE_Loss, self).__init__()
         self.temperature = torch.tensor(temperature, dtype=torch.float32)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #self.temperature = torch.nn.Parameter(torch.tensor(temperature, dtype=torch.float32))
     def forward(self, similarity_tensor, pos_indices, source_Points, target_Points, similarity_tensor_2, pos_indices_2):
         source_sim_numer = torch.bmm(source_Points, source_Points.transpose(1, 2))
@@ -42,7 +44,7 @@ class InfoNCE_Loss(torch.nn.Module):
         target_sim_denominator = torch.bmm(target_sim_normed1, target_sim_normed2)
         target_cosine_sim_ = target_sim_numer / target_sim_denominator
         
-        ident_mat = torch.eye(source_cosine_sim_.shape[1]).to(device)
+        ident_mat = torch.eye(source_cosine_sim_.shape[1], device=source_cosine_sim_.device)
         source_cosine_sim = source_cosine_sim_ - 2 * ident_mat
         target_cosine_sim = target_cosine_sim_ - 2 * ident_mat
 
@@ -130,7 +132,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         # assert resume
         if local_rank == output_rank:
             print(f"Evaluating without training...")
-            evaluation_epoch = 5
+            evaluation_epoch = 10
             accs, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank, eval_epoch=evaluation_epoch)
             all_error_dict[evaluation_epoch] = error_dict
             acc_dict = {
@@ -182,14 +184,15 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         epoch_correct = 0
         epoch_total_valid = 0
         
-        for inputs in dataloader["train"]:
+        train_loader_tqdm = tqdm(dataloader["train"], desc=f"Epoch {epoch}/{num_epochs - 1}", disable=(local_rank != output_rank))
+        for inputs in train_loader_tqdm:
             # all_classes = [_ for _ in inputs["cls"]]
             # print(all_classes)
-            data_list = [_.cuda() for _ in inputs["images"]]
-            points_gt_list = [_.cuda() for _ in inputs["Ps"]]
-            n_points_gt_list = [_.cuda() for _ in inputs["ns"]]
-            edges_list = [_.cuda() for _ in inputs["edges"]]
-            perm_mat_list = [perm_mat.cuda() for perm_mat in inputs["gt_perm_mat"]]
+            data_list = [_.to(device) for _ in inputs["images"]]
+            points_gt_list = [_.to(device) for _ in inputs["Ps"]]
+            n_points_gt_list = [_.to(device) for _ in inputs["ns"]]
+            edges_list = [_.to(device) for _ in inputs["edges"]]
+            perm_mat_list = [perm_mat.to(device) for perm_mat in inputs["gt_perm_mat"]]
             
             
             n_points_gt_sample = n_points_gt_list[0] #n_points_gt_list[0].to('cpu').apply_(lambda x: torch.randint(low=1, high=x, size=(1,)).item()).to(device)
@@ -227,9 +230,7 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 loss.backward()
                 
                 if max_norm > 0:
-                    for name, param in model.named_parameters():
-                        if param.grad is not None:
-                            torch.nn.utils.clip_grad_norm_(param, max_norm)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
                         
             
                 optimizer.step()
@@ -243,25 +244,21 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 B, N_s, N_t = perm_mat_list[0].size()
                 
                 
+                # Vectorized operations instead of slow for-loops
                 eval_pred_points = 0
-                j_pred = 0
-                predictions_list = []
-                for i in range(B):
-                    predictions_list.append([])
-                
-                # similarity_scores, _, _, _ = model(data_list, points_gt_list, edges_list, n_points_gt_list,  n_points_gt_sample, perm_mat_list, eval_pred_points=eval_pred_points, in_training= True)
-                
+
                 batch_size = eval_similarity_scores.shape[0]
                 keypoint_preds = F.softmax(eval_similarity_scores, dim=-1)
                 keypoint_preds = torch.argmax(keypoint_preds, dim=-1)
-                for np in range(N_t):
-                    for b in range(batch_size):
-                        if eval_pred_points < n_points_gt_sample[b]:
-                            predictions_list[b].append(keypoint_preds[b][eval_pred_points].item())
-                        else:
-                            predictions_list[b].append(-1)
-                    eval_pred_points +=1
-                prediction_tensor = torch.tensor(predictions_list).to(perm_mat_list[0].device)
+                
+                prediction_tensor = torch.full((batch_size, N_t), -1, dtype=torch.long, device=perm_mat_list[0].device)
+                arange = torch.arange(N_t, device=perm_mat_list[0].device).unsqueeze(0).expand(batch_size, N_t)
+                mask = arange < n_points_gt_sample.unsqueeze(-1)
+                
+                # We can safely use N_t since N_s == N_t via dataloader padding. 
+                # Slice to make sure shapes align completely even if edge case happens
+                prediction_tensor[mask] = keypoint_preds[:, :N_t][mask]
+
                 y_values_matching = torch.argmax(perm_mat_list[0], dim=-1)
                 
                 error_list = (prediction_tensor != y_values_matching).int()
@@ -290,6 +287,10 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
                 # fp += _fp
                 # fn += _fn
                 
+                if local_rank == output_rank:
+                    current_loss = loss.item()
+                    current_acc = epoch_correct / epoch_total_valid if epoch_total_valid > 0 else 0
+                    train_loader_tqdm.set_postfix({'loss': f"{current_loss:.4f}", 'acc': f"{current_acc:.4f}"})
                 
                 
                 
@@ -314,14 +315,14 @@ def train_eval_model(model, criterion, optimizer, dataloader, max_norm, num_epoc
         epoch_loss = epoch_loss / dataset_size
         epoch_time = time.time() - running_since
         if local_rank == output_rank:
-            # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1})
+            wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc})
             print(f'epoch loss: {epoch_loss}, epoch accuracy: {epoch_acc}')
             print(f'completed in {epoch_time:.2f}s ({epoch_time/60:.2f}m)')
         if (epoch+1) % cfg.STATISTIC_STEP == 0:
             if local_rank == output_rank:
                 accs, error_dict = eval.eval_model(model, dataloader["test"], local_rank, output_rank)
                 all_error_dict[epoch+1] = error_dict
-                # wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "ep_f1": epoch_f1, "mean test_acc": torch.mean(accs), "mean test_f1": torch.mean(f1_scores)})
+                wandb.log({"ep_loss": epoch_loss, "ep_acc": epoch_acc, "mean test_acc": torch.mean(accs)})
         
         
         if cfg.save_checkpoint and local_rank == output_rank:
@@ -347,8 +348,8 @@ if __name__ == "__main__":
     #linux
     dist.init_process_group(backend='nccl', init_method='env://', timeout=timedelta(minutes=60))
     
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    local_rank = int(os.environ['LOCAL_RANK']) 
+    world_size = 1# int(os.environ.get('WORLD_SIZE', 1))
+    local_rank = 0 #int(os.environ['LOCAL_RANK']) 
     output_rank = 0
     
     import json
@@ -358,21 +359,22 @@ if __name__ == "__main__":
     with open(os.path.join(cfg.model_dir, "settings.json"), "w") as f:
         json.dump(cfg, f)
     
-    # if local_rank == output_rank:
-    #     wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="NMT",
+    if local_rank == output_rank:
+        wandb.init(
+        # set the wandb project where this run will be logged
+        entity="apollos1301-heinrich-heine-university-d-sseldorf",
+        project="NMT",
         
-    #     # track hyperparameters and run metadata
-    #     config={
-    #     "learning_rate": cfg.TRAIN.LR,
-    #     "architecture": "NMT",
-    #     "dataset": cfg.DATASET_NAME,
-    #     "epochs": lr_schedules[cfg.TRAIN.lr_schedule][0],
-    #     "batch_size": cfg.BATCH_SIZE,
-    #     "cfg_full": cfg
-    #     }
-    #     )
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": cfg.TRAIN.LR,
+        "architecture": "NMT",
+        "dataset": cfg.DATASET_NAME,
+        "epochs": lr_schedules[cfg.TRAIN.lr_schedule][0],
+        "batch_size": cfg.BATCH_SIZE,
+        "cfg_full": cfg
+        }
+        )
 
     torch.manual_seed(cfg.RANDOM_SEED)
     
@@ -383,16 +385,42 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     
     dataset_len = {"train": cfg.TRAIN.EPOCH_ITERS * cfg.BATCH_SIZE, "test": cfg.EVAL.SAMPLES * world_size} # 
-    image_dataset = {
-        x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
-    }
     
-    sampler = {
-    "train": DistributedSampler(image_dataset["train"]),
-    "test": DistributedSampler(image_dataset["test"])
-    }
-    
-    dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
+    if getattr(cfg, 'USE_SYNTHETIC', False):
+        from data.dataset_synthetic_wrapper import SyntheticCollateWrapper, synthetic_collate_fn
+        from data.data_loader_multigraph import worker_init_fix, worker_init_rand
+        max_points = getattr(cfg, 'SYNTHETIC_MAX_POINTS', 1024)
+        step_size = getattr(cfg, 'SYNTHETIC_STEP_SIZE', 8)
+        image_dataset = {
+            x: SyntheticCollateWrapper(step_size=step_size, max_points=max_points, train=(x=="train")) for x in ("train", "test")
+        }
+        sampler = {
+            "train": DistributedSampler(image_dataset["train"]),
+            "test": DistributedSampler(image_dataset["test"])
+        }
+        dataloader = {}
+        for x in ("train", "test"):
+            dataloader[x] = torch.utils.data.DataLoader(
+                image_dataset[x],
+                batch_size=cfg.BATCH_SIZE,
+                sampler=sampler[x],
+                shuffle=False,
+                num_workers=10,
+                collate_fn=synthetic_collate_fn,
+                pin_memory=False,
+                worker_init_fn=worker_init_fix if (x == "test") else worker_init_rand,
+            )
+    else:
+        image_dataset = {
+            x: GMDataset(x, cfg.DATASET_NAME, sets=x, length=dataset_len[x], obj_resize=(384, 384)) for x in ("train", "test")
+        }
+        
+        sampler = {
+        "train": DistributedSampler(image_dataset["train"]),
+        "test": DistributedSampler(image_dataset["test"])
+        }
+        
+        dataloader = {x: get_dataloader(image_dataset[x],sampler[x], fix_seed=(x == "test")) for x in ("train", "test")}
 
     model = NMT()
         
