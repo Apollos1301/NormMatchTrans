@@ -1,0 +1,62 @@
+{
+  "USE_SYNTHETIC": true,
+  "SYNTHETIC_MAX_POINTS": 1024,
+  "SYNTHETIC_STEP_SIZE": 8,
+  "BATCH_SIZE": 8,
+  "DATASET_NAME": "PascalVOC",
+  "BACKBONE_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/checkpoints",
+  "VOC2011": {
+    "ROOT_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/downloaded/PascalVOC/VOC2011/",
+    "SET_SPLIT": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/split/voc2011_pairs.npz",
+    "KPT_ANNO_DIR": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/data/downloaded/PascalVOC/annotations/"
+  },
+  "exclude_willow_classes": false,
+  "EVAL": {
+    "SAMPLES": 1000,
+    "num_graphs_in_matching_instance": 2
+  },
+  "SPLINE_CNN": {
+    "input_features": 2048,
+    "output_features": 648
+  },
+  "Matching_TF": {
+    "n_head": 12,
+    "n_encoder": 4,
+    "n_decoder": 4,
+    "d_model": 648,
+    "nGPT_mlp_hidden_mult": 6,
+    "activation": "relu",
+    "batch_norm": true,
+    "pos_encoding": false,
+    "n_lap_EigVec": 8
+  },
+  "train_sampling": "intersection",
+  "eval_sampling": "intersection",
+  "save_checkpoint": true,
+  "RANDOM_SEED": 123,
+  "warmstart_path": null,
+  "TRAIN": {
+    "EPOCH_ITERS": 2000,
+    "LR": 0.0005,
+    "lr_schedule": "long_halving5",
+    "clip_norm": 0,
+    "weight_decay": 0,
+    "num_graphs_in_matching_instance": 2,
+    "layer_loss_param": 0.3,
+    "temperature": 0.1,
+    "random_erasing_prob": 0.3,
+    "cutmix_prob": 0.3,
+    "cutmix_beta": 1.0,
+    "mixup_prob": 0.3,
+    "mixup_alpha": 0.8
+  },
+  "STATISTIC_STEP": 1,
+  "TRACK_GRAD_NORM": false,
+  "visualize": false,
+  "visualization_params": {
+    "reduced_vis": true
+  },
+  "evaluate_only": false,
+  "model_dir": "./results/voc_synthetic/nmt_hard", 
+  "log_dir": "runs/"
+}

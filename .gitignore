@@ -16,3 +16,4 @@ run_script.csv
 *.tar
 *.zip
 *.tar.gz
+experiments/eval/models/
