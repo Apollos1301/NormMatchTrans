@@ -188,7 +188,8 @@ if __name__ == "__main__":
     
     # Execution
     # Update to point dynamically to however you want to fetch weights, or keep it pointing to the synthetic model explicitly
-    spair_weights = '/home/tosa098h/infera-abtin/NormMatchTrans/results/voc_synthetic/nmt/params/0003/params.pt'
+    # spair_weights = '/home/tosa098h/infera-abtin/NormMatchTrans/results/voc_synthetic/nmt_hardest/params/0008/params.pt'
+    spair_weights = '/data/cat/ws/tosa098h-abtin_NormMatchTrans/saved_models/results/voc_synthetic/nmt_hardest/params/0005/params.pt'
     
     # Provide the option to run on the full dataset or a subset
     print("Starting full HPatches evaluation (this may take a while)...")

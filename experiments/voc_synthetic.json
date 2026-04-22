@@ -57,6 +57,6 @@
     "reduced_vis": true
   },
   "evaluate_only": false,
-  "model_dir": "./results/voc_synthetic/nmt_hard", 
+  "model_dir": "/data/cat/ws/tosa098h-abtin_NormMatchTrans/saved_models/results/voc_synthetic/nmt_hardest", 
   "log_dir": "runs/"
 }

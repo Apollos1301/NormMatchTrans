@@ -49,7 +49,7 @@ class SyntheticHomographyDataset(Dataset):
 
         # Randomize the target corners to create a strong perspective warp
         # Increase the boundary perturbation to up to 40% to mimic HPatches extreme viewpoints
-        difficulty = random.uniform(0.25, 0.70)
+        difficulty = random.uniform(0.35, 0.85)
         margin = int(self.image_size * difficulty)
         
         # Add a global random translation to mimic large panning movements
